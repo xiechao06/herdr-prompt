@@ -85,12 +85,12 @@ starting a turn.
 | `gitdiff` | `git diff --cached`, or `git diff` when nothing is staged |
 | `none` | Nothing |
 
-The payload is a reference, and it comes first — reference, blank line, request:
+The payload is a reference, and it goes last — request, blank line, reference:
 
 ````text
-@src/herdr-prompt/init.lua:120-128
-
 Review this code. Report each issue as `path:line`, most serious first.
+
+@src/herdr-prompt/init.lua:120-128
 ````
 
 The path is always relative to the **target agent's** folder, so it resolves

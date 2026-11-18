@@ -79,13 +79,13 @@ That buffer is only for catalog prompts. To ask something of your own, use
 A prompt may name its own context (see |herdr-prompt-user-prompts|); otherwise
 the call site decides.
 
-The payload is a reference, and it comes first:
-
-    @src/file.lua:12-18
+The payload is a reference, and it comes last:
 
     Review this code.
 
-Reference, blank line, then the request. `@` is how an agent CLI is told "this
+    @src/file.lua:12-18
+
+Request, blank line, then the reference. `@` is how an agent CLI is told "this
 file". A prompt body may place it with `{{context}}` instead.
 
 The path is always relative to the target agent's folder: inside it `lua/x.lua`,

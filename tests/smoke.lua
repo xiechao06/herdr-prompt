@@ -69,8 +69,8 @@ eq(
 )
 
 eq(
-	"compose puts the context first when the body has no placeholder",
-	"@f.lua:1\n\nReview this.",
+	"compose puts the context last when the body has no placeholder",
+	"Review this.\n\n@f.lua:1",
 	compose.render("Review this.", { payload = "@f.lua:1" })
 )
 
@@ -452,21 +452,21 @@ do
 	local typed
 	ui.compose_float({
 		title = "Review → t1m",
-		lines = { "@x.lua:1", "", "Review this code." },
+		lines = { "Review this code.", "", "@x.lua:1" },
 		on_submit = function(text)
 			typed = text
 		end,
 	})
-	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("GA  Please be brief.<C-s>", true, false, true), "x", false)
+	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("ggA  Please be brief.<C-s>", true, false, true), "x", false)
 	vim.wait(1000, function()
 		return typed ~= nil
 	end, 20)
-	eq("edits in the float are what gets sent", "@x.lua:1\n\nReview this code.  Please be brief.", typed)
+	eq("edits in the float are what gets sent", "Review this code.  Please be brief.\n\n@x.lua:1", typed)
 
 	local untouched
 	ui.compose_float({
 		title = "Review → t1m",
-		lines = { "@x.lua:1", "", "Review this code." },
+		lines = { "Review this code.", "", "@x.lua:1" },
 		on_submit = function(text)
 			untouched = text
 		end,
@@ -475,7 +475,7 @@ do
 	vim.wait(1000, function()
 		return untouched ~= nil
 	end, 20)
-	eq("an untouched float sends its lines unchanged", "@x.lua:1\n\nReview this code.", untouched)
+	eq("an untouched float sends its lines unchanged", "Review this code.\n\n@x.lua:1", untouched)
 end
 
 -- ---------------------------------------------------------- agent picking

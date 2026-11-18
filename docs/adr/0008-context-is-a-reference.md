@@ -22,10 +22,14 @@ The payload is the reference alone, written as an agent mention:
 ```
 
 `@` because that is how an agent CLI is told "this file": the line reads as a
-mention rather than prose. And it comes **first**: reference, blank line, then
-the request. A mention at the start of a message is what the agent parses; the
-ask reads as a follow-up to it. A prompt body may still place the payload
-itself with `{{context}}`.
+mention rather than prose. It comes **last**: the request, a blank line, then
+the reference. The ask is what the agent has to act on, so it reads first; the
+reference closes the message as the thing being pointed at. A prompt body may
+place the payload anywhere itself with `{{context}}`.
+
+(An earlier revision of this ADR put the reference first. Both read fine; this
+is a preference, not a correctness argument, and `{{context}}` is the escape
+hatch for prompts that want the other order.)
 
 Always relative to the target agent's folder: `lua/x.lua` inside it,
 `../other/x.lua` beside it. Never absolute — an absolute path leaks a home

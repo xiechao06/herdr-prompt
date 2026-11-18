@@ -1,7 +1,7 @@
--- Putting the message together: context payload, then the request.
+-- Putting the message together: the request, then the context.
 --
 -- The body may place the context itself with `{{context}}`; when it does not,
--- the payload goes first, a blank line, then the body. `{{file}}` and
+-- the body goes first, a blank line, then the payload. `{{file}}` and
 -- `{{lines}}` are available too.
 -- See docs/adr/0008-context-is-a-reference.md
 
@@ -36,9 +36,9 @@ function M.render(body, ctx)
 	if body == "" then
 		return payload
 	end
-	-- Context first. The reference is what the request is about, and an agent
-	-- reads a mention at the start of a message; the ask follows it.
-	return payload .. "\n\n" .. body
+	-- Request first, reference after. The ask is what the agent has to act on;
+	-- the reference is what it acts on, and reads as the closing line.
+	return body .. "\n\n" .. payload
 end
 
 return M
