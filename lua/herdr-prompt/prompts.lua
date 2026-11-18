@@ -103,7 +103,28 @@ function M.display(p)
 	if type(p) == "string" then
 		return p
 	end
-	return string.format("%s — %s", p.name, p.description or "")
+	return string.format("%s — %s", p.name or "prompt", p.description or "")
+end
+
+--- `vim.ui.select` is handed labels, and the choice mapped back: an entry is a
+--- table here, and pickers that index into items should never see one.
+--- `cb` receives the entry, or the string for "Write my own…".
+function M.pick(choices, cb)
+	local labels, by_label = {}, {}
+	for i, item in ipairs(choices) do
+		local label = M.display(item)
+		if by_label[label] ~= nil then
+			label = label .. " (" .. i .. ")"
+		end
+		labels[i] = label
+		by_label[label] = item
+	end
+	vim.ui.select(labels, { prompt = "Prompt" }, function(choice)
+		local item = choice and by_label[choice] or nil
+		if item ~= nil then
+			cb(item)
+		end
+	end)
 end
 
 return M

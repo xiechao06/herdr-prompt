@@ -25,6 +25,28 @@ local function notify_error(msg)
 	end)
 end
 
+--- JSON `null` decodes to `vim.NIL`, a userdata: truthy, unlike anything else,
+--- and fatal to `table.concat`. Core sends nulls for every unset field (`name`,
+--- `exit_code`, `started`), so every reply is denulled here, once, instead of
+--- every caller remembering.
+local function denull(value)
+	if value == vim.NIL then
+		return nil
+	end
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for k, v in pairs(value) do
+		if v ~= vim.NIL then
+			out[k] = denull(v)
+		end
+	end
+	return out
+end
+
+M._denull = denull
+
 local function emit(method, params)
 	for _, cb in ipairs(state.listeners[method] or {}) do
 		pcall(cb, params)
@@ -43,6 +65,8 @@ local function handle_line(line)
 		local cb = state.pending[msg.id]
 		if cb then
 			state.pending[msg.id] = nil
+			msg.result = denull(msg.result)
+			msg.params = denull(msg.params)
 			vim.schedule(function()
 				cb(msg)
 			end)
@@ -50,7 +74,7 @@ local function handle_line(line)
 		return
 	end
 	if type(msg.method) == "string" then
-		emit(msg.method, msg.params)
+		emit(msg.method, denull(msg.params))
 	end
 end
 

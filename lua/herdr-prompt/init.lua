@@ -232,13 +232,7 @@ function M.prompt(opts)
 			return go(entry, entry.submit ~= false)
 		end
 
-		vim.ui.select(prompts.choices(user), {
-			prompt = "Prompt",
-			format_item = prompts.display,
-		}, function(choice)
-			if not choice then
-				return
-			end
+		prompts.pick(prompts.choices(user), function(choice)
 			if type(choice) == "string" then
 				-- "Write my own…": empty body, context still attached.
 				return go({ name = "prompt", body = "", context = default_kind }, true)

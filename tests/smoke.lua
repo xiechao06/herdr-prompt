@@ -82,6 +82,71 @@ eq("frontmatter body", "Do it.", rest)
 
 eq("no frontmatter leaves the body alone", "Just text", (select(2, user_prompts._split_frontmatter("Just text"))))
 
+-- ------------------------------------------------------- nulls and pickers
+
+-- What `vim.json.decode` really produces for {"name": null}.
+local raw = { address = "t1", state = "live", cwd = "/Users/x/a", name = vim.NIL, title = vim.NIL,
+	labels = { where = "a / 1" }, status = { app = "pi", state = "done" } }
+
+check(
+	"denull turns JSON null into nil",
+	vim.deep_equal(rpc._denull({ a = vim.NIL, b = { c = vim.NIL, d = "x" } }), { b = { d = "x" } }),
+	vim.inspect(rpc._denull({ a = vim.NIL, b = { c = vim.NIL, d = "x" } }))
+)
+
+local normalized = agents._normalize(raw)
+eq("normalize drops a null name", nil, normalized.name)
+eq("normalize keeps the agent status word", "done", normalized.status)
+eq("normalize keeps the terminal state", "live", normalized.state)
+check("an agent with a null name is still an agent", agents._is_agent(raw) == true)
+check("a finished terminal is not an agent", agents._is_agent({ address = "t9", state = "finished", status = { app = "pi", state = "done" } }) == false)
+check("a plain terminal is not an agent", agents._is_agent({ address = "t8", state = "live", status = vim.NIL }) == false)
+
+-- This is the shape that crashed: a null name reached table.concat.
+local label = agents.display(normalized)
+eq("label survives a null name", "pi · done · a", label)
+
+local second = agents._normalize({ address = "t2", state = "live", cwd = "/Users/x/a", name = "review", status = { app = "pi", state = "idle" } })
+
+local real_select = vim.ui.select
+local function stub_select(choice_index)
+	vim.ui.select = function(items, _opts, on_choice)
+		for i, item in ipairs(items) do
+			-- What every picker does somewhere: treat an item as text.
+			if type(item) ~= "string" then
+				error(string.format("item %d is %s, not a string", i, type(item)))
+			end
+		end
+		on_choice(items[choice_index], choice_index)
+	end
+end
+
+stub_select(2)
+local picked
+local ok, pick_err = pcall(agents.pick, { normalized, second }, function(a)
+	picked = a
+end)
+vim.ui.select = real_select
+check("agents.pick hands only strings to vim.ui.select", ok, pick_err)
+check("agents.pick maps the label back to its agent", picked ~= nil and picked.address == "t2", vim.inspect(picked))
+
+stub_select(1)
+local chosen
+local ok2, err2 = pcall(prompts.pick, prompts.choices({}), function(c)
+	chosen = c
+end)
+vim.ui.select = real_select
+check("prompts.pick hands only strings to vim.ui.select", ok2, err2)
+check("prompts.pick maps the label back to the entry", type(chosen) == "string", vim.inspect(chosen))
+
+stub_select(#prompts.choices({}))
+local entry
+local ok3, err3 = pcall(prompts.pick, prompts.choices({}), function(c)
+	entry = c
+end)
+vim.ui.select = real_select
+check("prompts.pick returns the last entry, not its label", ok3 and type(entry) == "table" and entry.name ~= nil, err3 or vim.inspect(entry))
+
 -- ----------------------------------------------------------------- context
 
 local dir = vim.fn.tempname()
@@ -165,12 +230,13 @@ if address then
 	local review = prompts.find("Review", {})
 	check("catalog has Review", review ~= nil)
 
-	local text = compose.render(review.body, context.build("selection", {
+	-- Without the entry there is nothing to send; say so rather than throwing.
+	local text = review and compose.render(review.body, context.build("selection", {
 		bufnr = bufnr,
 		first = 2,
 		last = 3,
 		cwd = dir,
-	}))
+	})) or ""
 
 	local sent = call("terminal.send", { terminal = address, text = text })
 	check("send accepted", sent and sent.result ~= nil, vim.inspect(sent))

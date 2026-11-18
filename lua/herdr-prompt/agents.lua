@@ -10,11 +10,33 @@ local rpc = require("herdr-prompt.rpc")
 
 local M = {}
 
-local function tail(path)
-	if not path or path == "" then
-		return "?"
-	end
-	return vim.fn.fnamemodify(path, ":t")
+local function text(value)
+	return type(value) == "string" and value or nil
+end
+
+--- One terminal from the core, as this plugin wants it: strings or nil, never
+--- a JSON null, never a nested table. Exposed for tests.
+function M._normalize(t)
+	local status = type(t.status) == "table" and t.status or {}
+	local labels = type(t.labels) == "table" and t.labels or {}
+	return {
+		address = text(t.address),
+		app = text(status.app),
+		-- `status` is the agent's word (idle|working|done|blocked|error);
+		-- `state` is the terminal's (live|finished). Never swap them.
+		status = text(status.state) or "unknown",
+		state = text(t.state),
+		cwd = text(t.cwd) or "",
+		name = text(t.name),
+		title = text(t.title),
+		where = text(labels.where),
+	}
+end
+
+--- Live, and running a program that reports an agent status.
+function M._is_agent(t)
+	local agent = M._normalize(t)
+	return agent.address ~= nil and agent.state == "live" and agent.app ~= nil
 end
 
 --- Live agent terminals, sorted by agent kind then folder.
@@ -26,20 +48,11 @@ function M.list(cb)
 		local out = {}
 		local me = vim.env.HC_TERMINAL_ID
 		for _, t in ipairs((msg.result or {}).terminals or {}) do
-			local st = t.status
-			if t.state == "live" and type(st) == "table" and st.app and t.address ~= me then
-				table.insert(out, {
-					address = t.address,
-					app = st.app,
-					-- `status` is the agent's word (idle|working|done|blocked|error);
-					-- `state` is the terminal's (live|finished). Never swap them.
-					status = st.state or "unknown",
-					state = t.state,
-					cwd = t.cwd or "",
-					name = t.name,
-					title = t.title,
-					where = (t.labels or {}).where,
-				})
+			if M._is_agent(t) then
+				local agent = M._normalize(t)
+				if agent.address ~= me then
+					table.insert(out, agent)
+				end
 			end
 		end
 		table.sort(out, function(a, b)
@@ -52,25 +65,46 @@ function M.list(cb)
 	end)
 end
 
+local function tail(path)
+	if not path or path == "" then
+		return "?"
+	end
+	return vim.fn.fnamemodify(path, ":t")
+end
+
 --- `pi · idle · herdr-app-prompt`, plus the terminal name when it has one.
+--- Every part is a string here: this is a picker label, and label builders that
+--- concatenate whatever they are handed are how `vim.NIL` used to reach
+--- `table.concat`.
 function M.display(agent)
-	local bits = { agent.app, agent.status }
-	if agent.name and agent.name ~= "" then
-		table.insert(bits, agent.name)
+	local bits = {}
+	for _, part in ipairs({ agent.app, agent.status, agent.name }) do
+		if type(part) == "string" and part ~= "" then
+			table.insert(bits, part)
+		end
 	end
 	table.insert(bits, tail(agent.cwd))
 	return table.concat(bits, " · ")
 end
 
---- Ask the person which agent. `vim.ui.select` keeps this free of a picker
---- dependency; dressing.nvim turns it into a real floating picker.
+--- Ask the person which agent. `vim.ui.select` is handed labels — plain
+--- strings — and the answer is mapped back, so no picker implementation can
+--- trip over the shape of a terminal record.
 function M.pick(list, cb)
-	vim.ui.select(list, {
-		prompt = "Send prompts to which agent?",
-		format_item = M.display,
-	}, function(choice)
-		if choice then
-			cb(choice)
+	local labels, by_label = {}, {}
+	for i, agent in ipairs(list) do
+		local label = M.display(agent)
+		if by_label[label] ~= nil then
+			-- Two terminals can read identically (same app, same folder).
+			label = label .. " (" .. i .. ")"
+		end
+		labels[i] = label
+		by_label[label] = agent
+	end
+	vim.ui.select(labels, { prompt = "Send prompts to which agent?" }, function(choice)
+		local agent = choice and by_label[choice] or nil
+		if agent then
+			cb(agent)
 		end
 	end)
 end
