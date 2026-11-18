@@ -201,9 +201,13 @@ vim.bo[bufnr].filetype = "lua"
 vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.fn.readfile(path))
 
 local built = context.build("selection", { bufnr = bufnr, first = 2, last = 3, cwd = dir })
-eq("location line is relative to the agent cwd", "probe.lua:2-3", vim.split(built.payload, "\n")[1])
+eq("the context is a path:line reference", "probe.lua:2-3", built.payload)
+eq("the reference is relative to the agent cwd", "probe.lua", built.file)
+check("no code is copied by default", built.copied_code == false, vim.inspect(built.copied_code))
+
+local with_code = context.build("selection", { bufnr = bufnr, first = 2, last = 3, cwd = dir, code = true })
 eq(
-	"payload body",
+	"context.code copies the lines too",
 	table.concat({
 		"probe.lua:2-3",
 		"```lua",
@@ -211,22 +215,46 @@ eq(
 		"local c = 3",
 		"```",
 	}, "\n"),
-	built.payload
+	with_code.payload
+)
+eq(
+	"context.line_numbers numbers copied lines",
+	"probe.lua:2\n```lua\n2: local b = 2\n```",
+	context.build("line", { bufnr = bufnr, first = 2, last = 2, cwd = dir, code = true, line_numbers = true }).payload
 )
 
 local whole = context.build("buffer", { bufnr = bufnr, cwd = dir })
-eq("buffer context covers every line", "probe.lua:1-3", vim.split(whole.payload, "\n")[1])
+eq("buffer context covers every line", "probe.lua:1-3", whole.payload)
 
 local outside = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = "/elsewhere" })
-local outside_location = vim.split(outside.payload, "\n")[1]
 check(
-	"a path outside the agent cwd stays absolute",
-	outside_location:sub(1, 1) == "/" and outside_location:find("probe.lua:1", 1, true) == #outside_location - 10,
-	outside_location
+	"a path outside the agent cwd is still relative",
+	outside.payload:sub(1, 1) ~= "/"
+		and outside.payload:sub(1, 2) == ".."
+		and outside.payload:find("probe.lua:1", 1, true) == #outside.payload - 10,
+	outside.payload
 )
 
-local too_big = context.build("buffer", { bufnr = bufnr, cwd = dir, max_lines = 2 })
+local sibling_cwd = dir .. "/agent"
+vim.fn.mkdir(sibling_cwd, "p")
+local sibling = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = sibling_cwd })
+eq("a file beside the agent's folder climbs out with ..", "../probe.lua:1", sibling.payload)
+
+local deeper = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = dir })
+eq("a file inside the agent's folder has no prefix at all", "probe.lua:1", deeper.payload)
+
+-- No path to point at: the code has to travel, or the message says nothing.
+local scratch = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { "print('scratch')" })
+local scratch_ctx = context.build("buffer", { bufnr = scratch, cwd = dir })
+check("an unnamed buffer sends its code", scratch_ctx.payload:find("print('scratch')", 1, true) ~= nil, scratch_ctx.payload)
+check("an unnamed buffer is not truncated", scratch_ctx.copied_code == true, vim.inspect(scratch_ctx))
+
+local too_big = context.build("buffer", { bufnr = bufnr, cwd = dir, code = true, max_lines = 2 })
 check("over max_lines is an error, not a truncation", too_big.error ~= nil, vim.inspect(too_big))
+
+local no_code_no_limit = context.build("buffer", { bufnr = bufnr, cwd = dir, max_lines = 1 })
+check("max_lines does not apply to a bare reference", no_code_no_limit.error == nil, vim.inspect(no_code_no_limit))
 
 -- ------------------------------------------------------------------ diff
 
@@ -290,13 +318,9 @@ if address then
 	end, 50)
 
 	check("payload location arrived", received:find("probe.lua:2-3", 1, true) ~= nil, received)
-	check("payload code arrived", received:find("local b = 2", 1, true) ~= nil, received)
-	check("payload fence arrived", received:find("```lua", 1, true) ~= nil, received)
+	check("the code itself is not copied", received:find("local b = 2", 1, true) == nil, received)
+	check("no fence without code", received:find("```lua", 1, true) == nil, received)
 	check("prompt body arrived", received:find("Review this code", 1, true) ~= nil, received)
-	check(
-		"body comes before the code",
-		(received:find("Review this code", 1, true) or 1e9) < (received:find("local b = 2", 1, true) or -1)
-	)
 
 	call("terminal.kill", { terminal = address })
 	call("terminal.rm", { terminal = address })
@@ -369,11 +393,7 @@ do
 	end
 
 	local direct = run("why is this slow?")
-	eq(
-		"the typed prompt is sent as-is, context below it",
-		"why is this slow?\n\nx.lua:1\n```lua\nlocal a = 1\n```",
-		direct and direct.text
-	)
+	eq("the typed prompt is sent as-is, then the reference", "why is this slow?\n\nx.lua:1", direct and direct.text)
 	check("the inline prompt goes to the target", direct ~= nil and direct.terminal == "t1m", vim.inspect(direct))
 
 	local cancelled = run(nil)
@@ -392,7 +412,7 @@ do
 	local typed
 	ui.compose_float({
 		title = "Review → t1m",
-		lines = { "Review this code.", "", "x.lua:1", "```lua", "local a = 1", "```" },
+		lines = { "Review this code.", "", "x.lua:1" },
 		on_submit = function(text)
 			typed = text
 		end,
@@ -401,11 +421,7 @@ do
 	vim.wait(1000, function()
 		return typed ~= nil
 	end, 20)
-	eq(
-		"edits in the float are what gets sent",
-		"Review this code.  Please be brief.\n\nx.lua:1\n```lua\nlocal a = 1\n```",
-		typed
-	)
+	eq("edits in the float are what gets sent", "Review this code.  Please be brief.\n\nx.lua:1", typed)
 
 	local untouched
 	ui.compose_float({

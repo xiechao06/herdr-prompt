@@ -65,16 +65,15 @@ The "Write my own..." row does not open that buffer: it asks for one line with
 A prompt may name its own context (see |herdr-prompt-user-prompts|); otherwise
 the call site decides.
 
-The payload is a location line, then a fenced block:
+The payload is a reference:
 
     src/file.lua:12-18
-    ```lua
-    code, verbatim
-    ```
 
-The path is relative to the target agent's folder when the file is inside it,
-absolute otherwise. Selections longer than `context.max_lines` are refused, not
-truncated.
+The path is always relative to the target agent's folder: inside it `lua/x.lua`,
+beside it `../other/x.lua`. The agent opens the file itself, so the lines are not
+copied; `context.code = true` copies them too, and they are always copied when
+there is no path to point at (a scratch buffer). With `code`, selections longer
+than `context.max_lines` are refused, not truncated.
 
 ==============================================================================
 4. YOUR OWN PROMPTS                             *herdr-prompt-user-prompts*

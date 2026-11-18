@@ -26,8 +26,12 @@ M.config = {
 	-- nil = <nvim config>/herdr-prompts
 	user_prompts_dir = nil,
 	context = {
-		-- prefix each line with its number (CopilotChat style)
+		-- Send the lines too, not just `path:12-18`. Off by default: the agent
+		-- is in the workspace and can read the file itself.
+		code = false,
+		-- with `code`, prefix each line with its number (CopilotChat style)
 		line_numbers = false,
+		-- with `code`, refuse more lines than this rather than truncating
 		max_lines = 2000,
 	},
 	keymaps = {
@@ -198,6 +202,7 @@ function M.prompt(opts)
 				first = first,
 				last = last,
 				cwd = agent.folder,
+				code = M.config.context.code,
 				max_lines = M.config.context.max_lines,
 				line_numbers = M.config.context.line_numbers,
 			})

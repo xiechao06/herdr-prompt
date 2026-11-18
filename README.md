@@ -77,18 +77,17 @@ is the message; there is nothing to review. `<Esc>` sends nothing.
 | `gitdiff` | `git diff --cached`, or `git diff` when nothing is staged |
 | `none` | Nothing |
 
-The payload is one shape: a location line, then a fenced block.
+The payload is a reference:
 
-`````text
+````text
 src/herdr-prompt/init.lua:120-128
-```lua
-local function do_send(agent, text)
-...
-```
-`````
+````
 
-The path is relative to the **target agent's** folder, so it resolves from where
-the agent runs; a file outside it keeps its absolute path.
+The path is always relative to the **target agent's** folder, so it resolves
+from where the agent runs: `lua/x.lua` inside that folder, `../other/x.lua`
+beside it. The agent opens the file itself, so nothing is copied by default — set `context.code = true` to
+paste the selected lines in as well, which is also what happens when there is no
+path to point at (a scratch buffer).
 
 ## Your own prompts
 
@@ -129,8 +128,9 @@ require("herdr-prompt").setup({
   prompts = {},           -- extra prompts, same shape as the catalog
   user_prompts_dir = nil, -- nil = <nvim config>/herdr-prompts
   context = {
-    line_numbers = false, -- prefix code lines with their number
-    max_lines = 2000,     -- refuse anything larger instead of truncating
+    code = false,         -- also paste the selected lines, not just path:line
+    line_numbers = false, -- (with code) prefix lines with their number
+    max_lines = 2000,     -- (with code) refuse anything larger, never truncate
   },
   keymaps = {
     prompt = "<leader>ap",

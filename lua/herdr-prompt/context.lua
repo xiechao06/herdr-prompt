@@ -11,23 +11,55 @@ local function realpath(path)
 	return path
 end
 
---- Path shortened against the target agent's folder, so what we print resolves
---- from where the agent actually runs. Outside it, the absolute path is the
---- only spelling that still works.
+local function path_parts(path)
+	local out = {}
+	for part in path:gmatch("[^/]+") do
+		table.insert(out, part)
+	end
+	return out
+end
+
+--- `path` seen from `base`, both absolute: `lua/x.lua` when it is inside,
+--- `../other/x.lua` when it is beside it. nil when they do not share a root.
+local function relative(path, base)
+	if path:sub(1, 1) ~= "/" or base:sub(1, 1) ~= "/" then
+		return nil
+	end
+	local to, from = path_parts(path), path_parts(base)
+	local i = 1
+	while i <= #to and i <= #from and to[i] == from[i] do
+		i = i + 1
+	end
+	local out = {}
+	for _ = i, #from do
+		table.insert(out, "..")
+	end
+	for j = i, #to do
+		table.insert(out, to[j])
+	end
+	return table.concat(out, "/")
+end
+
+--- The path as the agent would type it, from the folder it runs in. Always
+--- relative: `lua/x.lua` inside that folder, `../other/x.lua` outside it. A
+--- path only helps if it resolves where the agent is, and an absolute one
+--- leaks a home directory into every message.
 ---
---- Both spellings are tried: nvim hands back resolved paths, while a folder
---- typed by a person is often not (`/tmp` against `/private/tmp` on macOS).
+--- Both spellings are tried, shortest wins: nvim hands back resolved paths while
+--- a folder typed by a person is often not (`/tmp` against `/private/tmp`).
 local function relpath(file, cwd)
 	if not cwd or cwd == "" then
 		return file
 	end
-	for _, pair in ipairs({ { file, cwd }, { realpath(file), realpath(cwd) } }) do
-		local f, base = pair[1], pair[2]:gsub("/+$", "")
-		if base ~= "" and f:sub(1, #base + 1) == base .. "/" then
-			return f:sub(#base + 2)
+	local base = cwd:gsub("/+$", "")
+	local best
+	for _, pair in ipairs({ { file, base }, { realpath(file), realpath(base) } }) do
+		local candidate = relative(pair[1], pair[2])
+		if candidate and (not best or #candidate < #best) then
+			best = candidate
 		end
 	end
-	return file
+	return best or file
 end
 
 local function range_text(first, last)
@@ -106,42 +138,51 @@ function M.build(kind, opts)
 		return { error = "nothing to send: no line or selection" }
 	end
 
-	local count = last - first + 1
-	local max_lines = opts.max_lines or 2000
-	if count > max_lines then
-		return {
-			error = string.format(
-				"%d lines is over context.max_lines (%d) — narrow the selection or raise the limit",
-				count,
-				max_lines
-			),
-		}
-	end
-
-	local text = vim.api.nvim_buf_get_lines(bufnr, first - 1, last, false)
 	local path = buffer_path(bufnr)
 	local rel = path and relpath(path, opts.cwd) or nil
 	local range = range_text(first, last)
 	local location = rel and (rel .. ":" .. range) or "buffer"
 
-	local code = {}
-	for i, line in ipairs(text) do
-		if opts.line_numbers then
-			table.insert(code, string.format("%d: %s", first + i - 1, line))
-		else
-			table.insert(code, line)
-		end
-	end
+	-- The agent runs in the workspace and can open the file itself, so a
+	-- reference is the context: `path:12-18`. Copying the lines in as well is
+	-- opt-in (`context.code`), and mandatory when there is no path to point at
+	-- (a scratch buffer, a file outside every folder the agent can see).
+	local with_code = opts.code or rel == nil
+	local parts = { location }
 	local lang = fence_lang(bufnr)
-	local parts = { location, "```" .. lang }
-	vim.list_extend(parts, code)
-	table.insert(parts, "```")
+
+	if with_code then
+		local count = last - first + 1
+		local max_lines = opts.max_lines or 2000
+		if count > max_lines then
+			return {
+				error = string.format(
+					"%d lines is over context.max_lines (%d) — narrow the selection or raise the limit",
+					count,
+					max_lines
+				),
+			}
+		end
+		local text = vim.api.nvim_buf_get_lines(bufnr, first - 1, last, false)
+		local code = {}
+		for i, line in ipairs(text) do
+			if opts.line_numbers then
+				table.insert(code, string.format("%d: %s", first + i - 1, line))
+			else
+				table.insert(code, line)
+			end
+		end
+		table.insert(parts, "```" .. lang)
+		vim.list_extend(parts, code)
+		table.insert(parts, "```")
+	end
 
 	return {
 		payload = table.concat(parts, "\n"),
 		file = rel,
 		range = range,
 		lang = lang,
+		copied_code = with_code,
 	}
 end
 
