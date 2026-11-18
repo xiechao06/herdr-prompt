@@ -37,23 +37,32 @@ the focused terminal and leaves it on the line. So the sequence is:
    reference, nothing after it,
 2. `agent.focus --terminal t7`,
 3. `terminal.paste`,
-4. `terminal.keys { "home" }`, so the cursor ends up at the start of the line,
-   in front of the space.
+4. `terminal.keys` with **one `left` per character pasted**, so the cursor ends
+   up at the start of the line, in front of the space.
 
 Typing there gives `why is this slow? @x.lua:2`: the question comes first, one
 space separates it from the mention, and the mention is not where the cursor
 lands.
 
-The cursor needs that fourth step because a paste leaves it after the text. It
-cannot be smuggled into the clipboard: inside a **bracketed** paste the app wraps
-the text, and a cursor key inside arrives as literal characters. Verified against
-a program that enables bracketed paste, which received
-`b'w\x1b[200~abc\x1b[DXY\x1b[201~'` — the `ESC[D` travelled as text, not as a
-key. In a plain shell the same bytes did move the cursor, which is exactly why
-this is worth writing down: the shell result would have looked like proof.
+The cursor needs that fourth step because a paste leaves it after the text, and
+two cheaper routes are dead:
 
-Verified end to end: a probe terminal showed ` @x.lua:2` after the paste, and
-`abc @x.lua:2` after the home press and three typed characters.
+- **A cursor key inside the clipboard.** Inside a **bracketed** paste the app
+  wraps the text and the escape arrives as characters. A program that enables
+  bracketed paste received `b'w\x1b[200~abc\x1b[DXY\x1b[201~'`: the `ESC[D`
+  travelled as text. In a plain shell the same bytes *did* move the cursor,
+  which is why that test looked like proof and was not.
+- **`home`.** herdr-core sends `ESC[H` for it (measured), and an agent's input
+  box ignores that sequence. It worked in a shell, and did nothing in the real
+  agent — reported as "the cursor is still at the end".
+
+`left` is `ESC[D`, which the agent does honour: in a live agent, nine `left`
+presses after pasting `" @x.lua:2"` and one typed character gave
+`q @x.lua:2`. So the step is one `left` per character pasted
+(`vim.fn.strchars`), which walks the cursor to the start of what we pasted.
+
+Limitation: the count assumes the pasted reference is what sits at the end of the
+input box. If the box already held text, the cursor walks into that text instead.
 
 Verified against the running app before this was written: a `sh` probe showed
 `sh-3.2$ @paste-probe.lua:7` with the cursor still on that line, no execution.

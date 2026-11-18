@@ -73,12 +73,15 @@ only prompts.
 
 It works by clipboard: herdr-core has no paste-without-Enter (`terminal.send`
 always submits), so the reference goes to the `+` register, the app's own
-`terminal.paste` types it into the focused agent, and one `home` key press parks
-the cursor at the start. **That overwrites your clipboard** — it is the only
-channel that reaches an agent's input box without starting a turn. The `home`
-press arrives a few seconds later (`hc` waits for quiet), so if you are already
-typing it can move your cursor mid-word; `context.cursor_before = false` skips
-it and leaves the cursor after the reference.
+`terminal.paste` types it into the focused agent, and one `left` per character
+walks the cursor back to the start. **That overwrites your clipboard** — it is
+the only channel that reaches an agent's input box without starting a turn.
+The left presses arrive a few seconds later (`hc` waits for quiet), so if you are
+already typing they can move your cursor mid-word; `context.cursor_before =
+false` skips them and leaves the cursor after the reference.
+
+`home` would be one key instead of N, but agents ignore the `ESC[H` it sends
+(measured against a real one); `left` is `ESC[D` and works.
 
 ## Context
 
