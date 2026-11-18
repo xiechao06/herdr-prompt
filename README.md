@@ -53,7 +53,7 @@ nice), no treesitter, no LSP.
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
 | `:HerdrContext` | Paste ` @path:line` into the agent's input box with the cursor in front, unsubmitted, and focus it |
-| `:HerdrPromptTarget` | Choose which agent gets prompts |
+| `:HerdrPromptTarget` | Choose which agent gets prompts, or start one from Herdr's + menu |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
 
@@ -171,6 +171,15 @@ require("herdr-prompt").setup({
 - **The target is not persisted.** A new Neovim session asks again (one keystroke
   with one agent). A target that has since finished is reported, never silently
   replaced by another agent.
+- **The target picker can start an agent.** Its last row is
+  `➕  Start a new agent…`, listing the same programs Herdr's + menu offers
+  (installed first). Picking one runs `tab.new` — exactly what the menu does —
+  and waits for it to report. That list is the menu's cache from its last
+  opening, so a freshly edited `programs.json` shows up after you open the menu
+  once. With no live agents, the command goes straight there.
+- **A program that never reports agent status is refused, not adopted.** Start
+  `nvim` this way and you are told it cannot receive prompts; the previous
+  target stays.
 - **The agent you are already sending to is marked `✓`** at the top of its row
   and named in the picker's prompt, so re-opening the picker tells you where
   prompts currently go without opening one.

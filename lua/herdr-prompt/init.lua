@@ -73,6 +73,74 @@ local function use_target(agent)
 	vim.notify("herdr-prompt: prompts go to " .. agents.display(agent), vim.log.levels.INFO)
 end
 
+--- Ask the + menu which agent to start, start it, and wait for it to report.
+--- Launching is the app's own `tab.new`, the same call the menu makes.
+local function start_agent(then_)
+	local entries = app.menu_entries()
+	if #entries == 0 then
+		return error_notify("no agents in the Herdr + menu — open it once, or add one to programs.json")
+	end
+	local labels, by_label = {}, {}
+	table.sort(entries, function(a, b)
+		if a.installed ~= b.installed then
+			return a.installed
+		end
+		return (a.name or "") < (b.name or "")
+	end)
+	for i, entry in ipairs(entries) do
+		local label = entry.installed and entry.name or (entry.name .. " (not installed)")
+		if by_label[label] ~= nil then
+			label = label .. " (" .. i .. ")"
+		end
+		labels[i] = label
+		by_label[label] = entry
+	end
+	vim.ui.select(labels, { prompt = "Start which agent?" }, function(choice)
+		local entry = choice and by_label[choice] or nil
+		if not entry then
+			return
+		end
+		vim.notify("herdr-prompt: starting " .. entry.name, vim.log.levels.INFO)
+		app.launch(entry, function(address, launch_error)
+			if not address then
+				return error_notify("could not start " .. entry.name .. ": " .. tostring(launch_error))
+			end
+			-- The terminal exists; the agent reports its status a moment later.
+			local waited = 0
+			local function poll()
+				agents.find(address, function(agent)
+					if agent then
+						use_target(agent)
+						return then_(agent)
+					end
+					waited = waited + 1
+					if waited > 60 then
+						return error_notify(
+							string.format(
+								"%s is running as %s but reports no agent status, so it cannot receive prompts",
+								entry.name,
+								address
+							)
+						)
+					end
+					vim.defer_fn(poll, 250)
+				end)
+			end
+			poll()
+		end)
+	end)
+end
+
+--- Pick a target, offering to start a new agent from the + menu.
+local function pick_or_start(list, cb, current)
+	agents.pick(list, function(choice)
+		if type(choice) == "string" then
+			return start_agent(cb)
+		end
+		cb(choice)
+	end, current, { { label = "➕  Start a new agent…", value = "new" } })
+end
+
 --- Ask which agent, then remember it. A single live agent costs no picker:
 --- there is nothing to choose between.
 local function ask_target(cb)
@@ -81,13 +149,17 @@ local function ask_target(cb)
 			return error_notify(err)
 		end
 		if #list == 0 then
-			return error_notify("no live agent terminals — start an agent in Herdr first")
+			-- Nothing to pick: go straight to starting one.
+			return start_agent(function(agent)
+				state.target = agent
+				cb(agent)
+			end)
 		end
 		if #list == 1 then
 			state.target = list[1]
 			return cb(list[1])
 		end
-		agents.pick(list, function(choice)
+		pick_or_start(list, function(choice)
 			state.target = choice
 			cb(choice)
 		end, state.target and state.target.address)
@@ -126,9 +198,9 @@ function M.choose_target(address)
 			return error_notify(err)
 		end
 		if #list == 0 then
-			return error_notify("no live agent terminals — start an agent in Herdr first")
+			return start_agent(use_target)
 		end
-		agents.pick(list, use_target, state.target and state.target.address)
+		pick_or_start(list, use_target, state.target and state.target.address)
 	end)
 end
 
@@ -318,11 +390,20 @@ end
 
 -- ----------------------------------------------------------------- setup
 
+--- Our maps carry a `herdr-prompt:` description, which is how a second `setup()`
+--- (a config reload, a lazy re-init, a re-`require`) recognises its own work and
+--- replaces it quietly. A map that belongs to the person is still left alone and
+--- named — the description is the registry, so it survives the module reloading.
+local function is_ours(existing)
+	return type(existing.desc) == "string" and existing.desc:find("^herdr%-prompt:") ~= nil
+end
+
 local function map(mode, lhs, rhs, desc)
 	if lhs == nil or lhs == "" then
 		return
 	end
-	if not vim.tbl_isempty(vim.fn.maparg(lhs, mode, false, true)) then
+	local existing = vim.fn.maparg(lhs, mode, false, true)
+	if not vim.tbl_isempty(existing) and not is_ours(existing) then
 		vim.notify(
 			string.format("herdr-prompt: not overriding existing %s map %s", mode, lhs),
 			vim.log.levels.WARN

@@ -16,6 +16,7 @@ local compose = require("herdr-prompt.compose")
 local prompts = require("herdr-prompt.prompts")
 local user_prompts = require("herdr-prompt.user_prompts")
 local ui = require("herdr-prompt.ui")
+local app = require("herdr-prompt.app")
 
 local failures = {}
 local checks = 0
@@ -332,6 +333,137 @@ if address then
 
 	call("terminal.kill", { terminal = address })
 	call("terminal.rm", { terminal = address })
+end
+
+-- ------------------------------------------------------- + menu and launch
+
+do
+	local app_mod = require("herdr-prompt.app")
+
+	-- A cache file with the shape the + menu writes.
+	local home = vim.fn.tempname()
+	vim.fn.mkdir(home, "p")
+	vim.fn.writefile({
+		vim.json.encode({
+			["new-menu.agents"] = {
+				[""] = {
+					{ key = "pi", name = "Pi", run = { "pi" }, installed = true },
+					{ key = "claude", name = "Claude Code", run = { "claude" }, installed = false },
+					{ key = "broken", name = "No Command" },
+					{ key = "ext", name = "Elsewhere", run = { "x" }, installed = true },
+				},
+				["vps"] = { { key = "remote", name = "Remote", run = { "r" }, installed = true } },
+			},
+		}),
+	}, home .. "/shared.json")
+
+	local saved_home = vim.env.HERDR_APP_HOME
+	vim.env.HERDR_APP_HOME = home
+	local entries = app_mod.menu_entries()
+	vim.env.HERDR_APP_HOME = saved_home
+
+	eq("the + menu cache gives its entries", 3, #entries)
+	check("an entry keeps its command line", vim.deep_equal({ "pi" }, entries[1].run), vim.inspect(entries[1].run))
+	check("an entry without a command is dropped", (function()
+		for _, entry in ipairs(entries) do
+			if entry.key == "broken" then
+				return false
+			end
+		end
+		return true
+	end)())
+	check("installed is carried through", entries[1].installed == true and entries[2].installed == false)
+	check("another machine's entries are not offered", (function()
+		for _, entry in ipairs(entries) do
+			if entry.key == "remote" then
+				return false
+			end
+		end
+		return true
+	end)())
+
+	-- A missing cache is an empty list, not an error.
+	local empty_home = vim.fn.tempname()
+	vim.fn.mkdir(empty_home, "p")
+	vim.env.HERDR_APP_HOME = empty_home
+	eq("no cache means no entries", 0, #app_mod.menu_entries())
+	vim.env.HERDR_APP_HOME = saved_home
+end
+
+-- ------------------------------------------------- starting a target agent
+
+do
+	local mod = require("herdr-prompt")
+	local saved = {
+		list = agents.list,
+		find = agents.find,
+		menu = app.menu_entries,
+		launch = app.launch,
+		select = vim.ui.select,
+	}
+	local launched, failure
+
+	local function stub_nothing_live()
+		agents.list = function(cb)
+			cb({})
+		end
+	end
+	local function stub_menu()
+		app.menu_entries = function()
+			return {
+				{ key = "pi", name = "Pi", run = { "pi" }, installed = true },
+				{ key = "claude", name = "Claude Code", run = { "claude" }, installed = false },
+			}
+		end
+		vim.ui.select = function(items, _, on_choice)
+			on_choice(items[1], 1) -- installed first
+		end
+	end
+	local function stub_launch(address, err)
+		app.launch = function(entry, cb)
+			launched = entry
+			cb(address, err)
+		end
+	end
+	local function stub_find(agent)
+		agents.find = function(_, cb)
+			cb(agent)
+		end
+	end
+	local function restore()
+		agents.list = saved.list
+		agents.find = saved.find
+		app.menu_entries = saved.menu
+		app.launch = saved.launch
+		vim.ui.select = saved.select
+		package.loaded["herdr-prompt"] = nil
+		require("herdr-prompt")
+	end
+
+	mod.setup({ keymaps = {}, target = nil })
+
+	-- No live agent: the picker offers the + menu, and the launched one is used.
+	stub_nothing_live()
+	stub_menu()
+	stub_launch("t99", nil)
+	stub_find({ address = "t99", app = "pi", status = "idle", state = "live", folder = "/x" })
+	mod.choose_target(nil)
+	vim.wait(3000, function()
+		return mod.target() ~= nil
+	end, 20)
+	check("starting an agent from the + menu makes it the target", mod.target() ~= nil and mod.target().address == "t99", vim.inspect(mod.target()))
+	check("the + menu entry that was picked is the one launched", launched ~= nil and launched.name == "Pi", vim.inspect(launched))
+
+	-- A launch that fails must leave the old target alone and say why.
+	local previous = mod.target()
+	stub_launch(nil, "tab.new refused")
+	mod.choose_target(nil)
+	vim.wait(1000, function()
+		return failure ~= nil
+	end, 20)
+	eq("a failed launch keeps the previous target", previous, mod.target())
+
+	restore()
 end
 
 -- ---------------------------------------------------------- context command

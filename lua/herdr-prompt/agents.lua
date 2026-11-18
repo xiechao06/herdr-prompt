@@ -104,7 +104,11 @@ M.CURRENT = "✓ "
 ---
 --- `current` is the address already chosen, marked with `✓` and named in the
 --- prompt: re-opening the picker answers "where do my prompts go?" first.
-function M.pick(list, cb, current)
+---
+--- `extras` are rows that are not agents — `{{label = "...", value = "..."}}` —
+--- appended after them. The choice arrives as the agent record, or as one of
+--- those values.
+function M.pick(list, cb, current, extras)
 	local labels, by_label = {}, {}
 	local marked = false
 	for i, agent in ipairs(list) do
@@ -119,6 +123,14 @@ function M.pick(list, cb, current)
 		end
 		labels[i] = label
 		by_label[label] = agent
+	end
+	for _, extra in ipairs(extras or {}) do
+		local label = extra.label
+		if by_label[label] ~= nil then
+			label = label .. " (" .. (#labels + 1) .. ")"
+		end
+		table.insert(labels, label)
+		by_label[label] = extra.value
 	end
 	local prompt = "Send prompts to which agent?"
 	if marked then

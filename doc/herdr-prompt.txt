@@ -51,7 +51,11 @@ The agent works in its own pane. This plugin does not read its answers back.
                         submit; herdr-core's own send always presses Enter.
 
                                                   *:HerdrPromptTarget*
-:HerdrPromptTarget      Choose which agent receives prompts.
+:HerdrPromptTarget      Choose which agent receives prompts. The last row starts
+                        a new one: it lists the programs Herdr's + menu offers
+                        (its cached list), runs `tab.new` for the one you pick,
+                        and waits for it to report before using it. A program
+                        that never reports status is refused, not adopted.
 :HerdrPromptTarget {t}  Point at a terminal address (`t7`) without a picker.
 
                                                     *:HerdrPromptStop*
