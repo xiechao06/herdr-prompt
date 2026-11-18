@@ -39,8 +39,11 @@ The agent works in its own pane. This plugin does not read its answers back.
                         With a range, the selection. No turn starts: you type
                         the question there and press Enter yourself.
 
-                        The reference is pasted with a space after it, so
-                        what you type next starts as a separate word.
+                        The reference is pasted as " @path:line", cursor in
+                        front of it: typing gives "why? @x.lua:2". The cursor
+                        is parked there by one `home` key press, which arrives
+                        after a few seconds of quiet -- set
+                        `context.cursor_before = false` to skip it.
 
                         It travels by the clipboard (`+`), which the app's
                         paste reads -- so this overwrites your clipboard. That

@@ -33,10 +33,27 @@ asks nothing.
 The app can do it. `herdr-app do terminal.paste` types the system clipboard into
 the focused terminal and leaves it on the line. So the sequence is:
 
-1. write the reference to the clipboard (`+`), followed by a space so the
-   question typed next starts as its own word,
+1. write `" @path:line"` to the clipboard (`+`) — a space *in front* of the
+   reference, nothing after it,
 2. `agent.focus --terminal t7`,
-3. `terminal.paste`.
+3. `terminal.paste`,
+4. `terminal.keys { "home" }`, so the cursor ends up at the start of the line,
+   in front of the space.
+
+Typing there gives `why is this slow? @x.lua:2`: the question comes first, one
+space separates it from the mention, and the mention is not where the cursor
+lands.
+
+The cursor needs that fourth step because a paste leaves it after the text. It
+cannot be smuggled into the clipboard: inside a **bracketed** paste the app wraps
+the text, and a cursor key inside arrives as literal characters. Verified against
+a program that enables bracketed paste, which received
+`b'w\x1b[200~abc\x1b[DXY\x1b[201~'` — the `ESC[D` travelled as text, not as a
+key. In a plain shell the same bytes did move the cursor, which is exactly why
+this is worth writing down: the shell result would have looked like proof.
+
+Verified end to end: a probe terminal showed ` @x.lua:2` after the paste, and
+`abc @x.lua:2` after the home press and three typed characters.
 
 Verified against the running app before this was written: a `sh` probe showed
 `sh-3.2$ @paste-probe.lua:7` with the cursor still on that line, no execution.

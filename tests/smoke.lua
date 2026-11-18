@@ -337,7 +337,7 @@ do
 	local app = require("herdr-prompt.app")
 	local saved_request, saved_select = rpc.request, vim.ui.select
 	local saved_copy, saved_focus, saved_paste = app.copy, app.focus, app.paste
-	local sent, copied, focused, pasted, order = nil, nil, nil, nil, {}
+	local sent, copied, focused, pasted, keys_pressed, order = nil, nil, nil, nil, nil, {}
 
 	local function install_stubs()
 		app.copy = function(text)
@@ -379,15 +379,19 @@ do
 				end
 				return
 			end
+			if method == "terminal.keys" then
+				keys_pressed = params.keys
+				if cb then
+					cb({ result = {} })
+				end
+				return
+			end
 			if cb then
 				cb({ result = {} })
 			end
 		end
 		vim.ui.select = function(items, _, on_choice)
 			on_choice(items[1], 1)
-		end
-		agents.focus = function(address)
-			focused = address
 		end
 	end
 
@@ -413,16 +417,21 @@ do
 
 	mod.context({})
 	vim.wait(3000, function()
-		return sent ~= nil
+		return pasted ~= nil
 	end, 20)
 
-	eq("the reference goes to the clipboard, with a space to type after", "@x.lua:2 ", copied)
+	eq("the reference goes to the clipboard with a space in front of it", " @x.lua:2", copied)
 	eq("the context command focuses the agent", "t1m", focused)
 	check("the reference is pasted into it", pasted == true, vim.inspect(pasted))
 	check("nothing is submitted: no turn is started", sent == nil, vim.inspect(sent))
+	check(
+		"the cursor is parked at the start with home",
+		vim.deep_equal({ "home" }, keys_pressed),
+		vim.inspect(keys_pressed)
+	)
 	eq(
-		"copy, then focus, then paste",
-		"copy,focus,paste",
+		"copy, focus, paste, then a key press for the cursor",
+		"copy,focus,paste,terminal.keys",
 		table.concat(vim.tbl_filter(function(step)
 			return step ~= "terminal.list"
 		end, order), ",")

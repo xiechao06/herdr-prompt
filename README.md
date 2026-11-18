@@ -52,7 +52,7 @@ nice), no treesitter, no LSP.
 | `:HerdrPrompt` | Pick a prompt; the current line is the context |
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
-| `:HerdrContext` | Paste `@path:line ` into the agent's input box, unsubmitted, and focus it |
+| `:HerdrContext` | Paste ` @path:line` into the agent's input box with the cursor in front, unsubmitted, and focus it |
 | `:HerdrPromptTarget` | Choose which agent gets prompts |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
@@ -65,15 +65,20 @@ prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
 can edit anything first (fix the range, drop the code, reword the ask).
 
 Type your own question in the agent's own input box instead: `:HerdrContext`
-puts `@path:line` on the agent's input line — unsubmitted — and moves focus
-there, so you finish the sentence where that CLI already has history, drafts and
-completion. No turn is started. The picker lists prompts and only prompts.
+puts ` @path:line` on the agent's input line — unsubmitted, cursor in front of
+it — and moves focus there, so you finish the sentence where that CLI already
+has history, drafts and completion. Typing gives
+`why is this slow? @x.lua:2`. No turn is started. The picker lists prompts and
+only prompts.
 
 It works by clipboard: herdr-core has no paste-without-Enter (`terminal.send`
-always submits), so the reference goes to the `+` register, then the app's own
-`terminal.paste` types it into the focused agent. **That overwrites your
-clipboard** — it is the only channel that reaches an agent's input box without
-starting a turn.
+always submits), so the reference goes to the `+` register, the app's own
+`terminal.paste` types it into the focused agent, and one `home` key press parks
+the cursor at the start. **That overwrites your clipboard** — it is the only
+channel that reaches an agent's input box without starting a turn. The `home`
+press arrives a few seconds later (`hc` waits for quiet), so if you are already
+typing it can move your cursor mid-word; `context.cursor_before = false` skips
+it and leaves the cursor after the reference.
 
 ## Context
 

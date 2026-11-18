@@ -30,6 +30,9 @@ M.config = {
 		-- Send the lines too, not just `path:12-18`. Off by default: the agent
 		-- is in the workspace and can read the file itself.
 		code = false,
+		-- `:HerdrContext`: leave the cursor at the start of the pasted reference,
+		-- ready for the question that belongs in front of it.
+		cursor_before = true,
 		-- with `code`, prefix each line with its number (CopilotChat style)
 		line_numbers = false,
 		-- with `code`, refuse more lines than this rather than truncating
@@ -286,9 +289,10 @@ function M.context(opts)
 		-- Not a message: the reference goes into the agent's input box, unsubmitted,
 		-- and focus follows it there. herdr-core cannot paste without pressing
 		-- Enter, so the text travels by the clipboard and the app's own paste.
-		-- Trailing space: the cursor lands after it, so the question starts as a
-		-- separate word instead of touching the path.
-		local copied, copy_error = app.copy(payload.payload .. " ")
+		-- A space *before* the reference: the cursor is parked in front of it, so
+		-- the question typed there ends up separated from the mention rather than
+		-- touching it. Nothing trails the reference — the cursor is not there.
+		local copied, copy_error = app.copy(" " .. payload.payload)
 		if not copied then
 			return error_notify("cannot use the clipboard, so nothing was pasted: " .. tostring(copy_error))
 		end
@@ -299,6 +303,21 @@ function M.context(opts)
 			app.paste(function(pasted, paste_error)
 				if not pasted then
 					return error_notify("could not paste into " .. agent.address .. ": " .. tostring(paste_error))
+				end
+				if M.config.context.cursor_before then
+					-- A paste leaves the cursor after the text. `home` needs its own
+					-- key press: inside a bracketed paste the app wraps the text, so
+					-- a cursor key in the clipboard would arrive as literal junk
+					-- (verified: the paste was delivered as ESC[200~ ... ESC[201~).
+					rpc.request("terminal.keys", { terminal = agent.address, keys = { "home" } }, function(msg)
+						if msg.error then
+							vim.notify(
+								"herdr-prompt: could not move the cursor to the start: "
+									.. tostring(msg.error.message or "?"),
+								vim.log.levels.WARN
+							)
+						end
+					end)
 				end
 				vim.notify(
 					string.format(
