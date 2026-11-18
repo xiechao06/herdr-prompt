@@ -22,5 +22,11 @@ prompt skips only the send, leaving the text in the float).
 
 - One keystroke more than "send immediately", in exchange for the range and path
   being visible before they are committed.
-- The float is also the inline-prompt input: "Write my own…" is the same float
-  with an empty body. One composition surface, not two.
+- The float is also the inline-prompt input: "Write my own…" is the same float,
+  opened with two blank lines above the context and the cursor in insert mode.
+  Typing space, then a blank line, then the payload; blank lines left empty are
+  dropped on submit. One composition surface, not two.
+- The first version skipped both, so an inline prompt opened in normal mode *on
+  the context's own location line*: the first word typed ran as motions (`o`
+  opened a line, `w` moved a word) and the message arrived mangled. Fixed the
+  same day; the test now types into the float and checks the submitted text.
