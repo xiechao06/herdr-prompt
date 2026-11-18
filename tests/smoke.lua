@@ -36,6 +36,10 @@ local function eq(name, want, got)
 	)
 end
 
+-- A folder that exists nowhere on purpose: only string comparison touches it.
+-- Nothing here may depend on whose machine runs the test.
+local agent_cwd = vim.fn.tempname() .. "/agent_workspace"
+
 rpc.setup({ bin = "hc" })
 
 local function call(method, params, timeout)
@@ -364,8 +368,8 @@ do
 			if method == "terminal.list" then
 				if cb then
 					cb({ result = { terminals = { {
-						address = "t1m", state = "live", cwd = "/Users/xiechao",
-						foreground = { cwd = "/Users/xiechao/agent_workspace" },
+						address = "t1m", state = "live", cwd = vim.fn.fnamemodify(agent_cwd, ":h"),
+						foreground = { cwd = agent_cwd },
 						labels = { where = "agent_workspace / 1" },
 						status = { app = "pi", state = "done" },
 					} } } })
@@ -404,7 +408,7 @@ do
 	vim.api.nvim_set_current_buf(buf)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local a = 1", "local b = 2" })
 	-- Inside the agent's folder, so the reference is relative to it.
-	vim.api.nvim_buf_set_name(buf, "/Users/xiechao/agent_workspace/x.lua")
+	vim.api.nvim_buf_set_name(buf, agent_cwd .. "/x.lua")
 	vim.bo[buf].filetype = "lua"
 	vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
