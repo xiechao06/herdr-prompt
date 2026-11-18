@@ -141,7 +141,9 @@ function M.build(kind, opts)
 	local path = buffer_path(bufnr)
 	local rel = path and relpath(path, opts.cwd) or nil
 	local range = range_text(first, last)
-	local location = rel and (rel .. ":" .. range) or "buffer"
+	-- `@` because that is how an agent CLI is told "this file": the reference
+	-- reads as a mention, not as prose.
+	local location = rel and ("@" .. rel .. ":" .. range) or "buffer"
 
 	-- The agent runs in the workspace and can open the file itself, so a
 	-- reference is the context: `path:12-18`. Copying the lines in as well is

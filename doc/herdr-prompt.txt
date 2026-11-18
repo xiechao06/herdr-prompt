@@ -33,6 +33,11 @@ The agent works in its own pane. This plugin does not read its answers back.
                         `:'<,'>HerdrPrompt` sends the selection.
 :HerdrPrompt {name}     Skip the picker and use the named prompt.
 
+                                                      *:HerdrContext*
+:HerdrContext           Send this line as `@path:line` and nothing else, then
+:[range]HerdrContext    focus that agent's pane. With a range, the selection.
+                        The next keystroke is typed into the agent.
+
                                                   *:HerdrPromptTarget*
 :HerdrPromptTarget      Choose which agent receives prompts.
 :HerdrPromptTarget {t}  Point at a terminal address (`t7`) without a picker.
@@ -50,8 +55,8 @@ fenced code.
 
 Edit anything before sending; the buffer contents are what gets sent.
 
-The "Write my own..." row does not open that buffer: it asks for one line with
-|vim.ui.input()| and sends it at once with the context below it.
+That buffer is only for catalog prompts. To ask something of your own, use
+|:HerdrContext| and type it in the agent's own input box.
 
 ==============================================================================
 3. CONTEXT                                           *herdr-prompt-context*
@@ -65,9 +70,14 @@ The "Write my own..." row does not open that buffer: it asks for one line with
 A prompt may name its own context (see |herdr-prompt-user-prompts|); otherwise
 the call site decides.
 
-The payload is a reference:
+The payload is a reference, and it comes first:
 
-    src/file.lua:12-18
+    @src/file.lua:12-18
+
+    Review this code.
+
+Reference, blank line, then the request. `@` is how an agent CLI is told "this
+file". A prompt body may place it with `{{context}}` instead.
 
 The path is always relative to the target agent's folder: inside it `lua/x.lua`,
 beside it `../other/x.lua`. The agent opens the file itself, so the lines are not

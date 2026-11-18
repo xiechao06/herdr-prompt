@@ -22,10 +22,9 @@ prompt skips only the send, leaving the text in the float).
 
 - One keystroke more than "send immediately", in exchange for the range and path
   being visible before they are committed.
-- Inline prompts do not use the float. "Write my own…" asks for one line with
-  `vim.ui.input` and sends it with the context attached. The message is the
-  thing the person just typed, so there is nothing to review, and a float costs
-  a keystroke without adding information.
+- The float is for **catalog prompts** only: its job is to show a composed
+  range and path before they are committed. Typed prompts left the picker
+  entirely — see 0009, which replaced "Write my own…" with `:HerdrContext`.
 - Two earlier versions were wrong, both same-day: the first opened the float
   with the cursor in normal mode *on the context's own location line* (typing
   "please fix this" ran as motions — `o` opened a line, `w` moved a word); the

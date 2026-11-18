@@ -152,7 +152,8 @@ end
 
 -- ------------------------------------------------------------------ send
 
-local function do_send(agent, text)
+local function do_send(agent, text, opts)
+	opts = opts or {}
 	if agent.status == "blocked" then
 		return error_notify(agents.display(agent) .. " is blocked — answer its question in its pane first")
 	end
@@ -172,7 +173,7 @@ local function do_send(agent, text)
 			note = note .. " (no agent status reported)"
 		end
 		vim.notify("herdr-prompt: " .. note, vim.log.levels.INFO)
-		if M.config.focus_agent then
+		if opts.focus or M.config.focus_agent then
 			agents.focus(agent.address)
 		end
 	end)
@@ -180,10 +181,10 @@ end
 
 -- ---------------------------------------------------------------- prompt
 
---- opts = {name?, range?, line1?, line2?}
-function M.prompt(opts)
-	opts = opts or {}
-	local bufnr = vim.api.nvim_get_current_buf()
+--- What the call site selected: a visual range when the command had one,
+--- otherwise the cursor's line.
+--- opts = {range?, line1?, line2?}
+local function call_site(opts)
 	local ranged = (opts.range or 0) > 0
 	local first, last
 	if ranged then
@@ -192,8 +193,20 @@ function M.prompt(opts)
 		first = vim.api.nvim_win_get_cursor(0)[1]
 		last = first
 	end
-	-- A visual call means "this selection"; a plain `:HerdrPrompt` only has a line.
-	local default_kind = ranged and "selection" or "line"
+	return {
+		bufnr = vim.api.nvim_get_current_buf(),
+		first = first,
+		last = last,
+		-- A visual call means "this selection"; a plain call only has a line.
+		kind = ranged and "selection" or "line",
+	}
+end
+
+--- opts = {name?, range?, line1?, line2?}
+function M.prompt(opts)
+	opts = opts or {}
+	local site = call_site(opts)
+	local bufnr, first, last, default_kind = site.bufnr, site.first, site.last, site.kind
 
 	with_target(function(agent)
 		local function go(entry, submit)
@@ -210,10 +223,8 @@ function M.prompt(opts)
 				return error_notify(payload.error)
 			end
 			local text = compose.render(entry.body or "", payload)
-			-- `entry.direct` is the inline prompt: what the person typed is the
-			-- message, nothing to review. `confirm = false` says the same for
-			-- every prompt.
-			if entry.direct or not M.config.confirm then
+			-- `confirm = false` sends without the review float.
+			if not M.config.confirm then
 				if submit == false then
 					return error_notify("this prompt is sent without review, so an unsent one has nowhere to live")
 				end
@@ -243,19 +254,34 @@ function M.prompt(opts)
 		end
 
 		prompts.pick(prompts.choices(user), function(choice)
-			if type(choice) == "string" then
-				-- "Write my own…": one line, sent with the context, no float.
-				local prompt = string.format("Prompt for %s", agent.address or agent.app or "the agent")
-				return vim.ui.input({ prompt = prompt .. ": " }, function(input)
-					input = input and vim.trim(input) or ""
-					if input == "" then
-						return
-					end
-					go({ name = "your prompt", body = input, context = default_kind, direct = true }, true)
-				end)
-			end
 			go(choice, choice.submit ~= false)
 		end)
+	end)
+end
+
+--- Send the reference and nothing else, then put you in the agent's pane so you
+--- can go on talking there. A mention on its own is a complete message: the
+--- agent reads the file and asks what you want.
+--- opts = {range?, line1?, line2?}
+function M.context(opts)
+	local site = call_site(opts or {})
+	with_target(function(agent)
+		local payload = context.build(site.kind, {
+			bufnr = site.bufnr,
+			first = site.first,
+			last = site.last,
+			cwd = agent.folder,
+			code = M.config.context.code,
+			max_lines = M.config.context.max_lines,
+			line_numbers = M.config.context.line_numbers,
+		})
+		if payload.error then
+			return error_notify(payload.error)
+		end
+		if payload.payload == "" then
+			return error_notify("nothing to send: no context here")
+		end
+		do_send(agent, payload.payload, { focus = true })
 	end)
 end
 

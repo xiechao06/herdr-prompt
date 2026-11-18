@@ -52,6 +52,7 @@ nice), no treesitter, no LSP.
 | `:HerdrPrompt` | Pick a prompt; the current line is the context |
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
+| `:HerdrContext` | Send this line or selection as `@path:line` only, then focus the agent |
 | `:HerdrPromptTarget` | Choose which agent gets prompts |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
@@ -63,9 +64,10 @@ After a prompt is composed, a floating buffer shows the whole message —
 prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
 can edit anything first (fix the range, drop the code, reword the ask).
 
-**Write my own…** does not open the float: it asks for one line with
-`vim.ui.input`, then sends that line with the context below it. Your own prompt
-is the message; there is nothing to review. `<Esc>` sends nothing.
+Type your own question in the agent's own input box instead: `:HerdrContext`
+sends `@path:line` on its own and moves focus to that agent's pane, so the next
+keystroke lands where an agent CLI already has history, drafts and completion.
+The picker lists prompts and only prompts.
 
 ## Context
 
@@ -77,10 +79,12 @@ is the message; there is nothing to review. `<Esc>` sends nothing.
 | `gitdiff` | `git diff --cached`, or `git diff` when nothing is staged |
 | `none` | Nothing |
 
-The payload is a reference:
+The payload is a reference, and it comes first — reference, blank line, request:
 
 ````text
-src/herdr-prompt/init.lua:120-128
+@src/herdr-prompt/init.lua:120-128
+
+Review this code. Report each issue as `path:line`, most serious first.
 ````
 
 The path is always relative to the **target agent's** folder, so it resolves

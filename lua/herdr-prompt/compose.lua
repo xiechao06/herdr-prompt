@@ -1,9 +1,9 @@
--- Putting the message together: prompt body + context payload.
+-- Putting the message together: context payload, then the request.
 --
--- The body may say where the context goes with `{{context}}`; when it does not,
--- the payload is appended after a blank line. `{{file}}` and `{{lines}}` are
--- available too.
--- See docs/adr/0004-context-payload-shape.md
+-- The body may place the context itself with `{{context}}`; when it does not,
+-- the payload goes first, a blank line, then the body. `{{file}}` and
+-- `{{lines}}` are available too.
+-- See docs/adr/0008-context-is-a-reference.md
 
 local M = {}
 
@@ -29,13 +29,16 @@ function M.render(body, ctx)
 		return vim.trim(text)
 	end
 	local payload = ctx.payload or ""
+	body = vim.trim(text)
 	if payload == "" then
-		return vim.trim(text)
+		return body
 	end
-	if text == "" then
+	if body == "" then
 		return payload
 	end
-	return text .. "\n\n" .. payload
+	-- Context first. The reference is what the request is about, and an agent
+	-- reads a mention at the start of a message; the ask follows it.
+	return payload .. "\n\n" .. body
 end
 
 return M

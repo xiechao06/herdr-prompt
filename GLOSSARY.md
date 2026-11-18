@@ -38,7 +38,8 @@ of it stay predictable.
 (shipped, parameterised, e.g. Explain / Review / Tests) or a **user prompt**
 (written by the person, lives on disk, same shape as a catalog prompt).
 
-**inline prompt** — a prompt typed at send time, not saved anywhere.
+**context send** — `:HerdrContext`: the reference alone, sent, with focus moved
+to the agent's pane. Not a prompt: it carries no question.
 
 **send** — one `hc send` invocation: paste, then Enter. Irreversible once the
 agent's turn starts.

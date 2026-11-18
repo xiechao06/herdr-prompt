@@ -34,6 +34,17 @@ end, {
 	end,
 })
 
+vim.api.nvim_create_user_command("HerdrContext", function(opts)
+	require("herdr-prompt").context({
+		range = opts.range,
+		line1 = opts.line1,
+		line2 = opts.line2,
+	})
+end, {
+	range = true,
+	desc = "Send this line or selection to the agent as @path:line, then focus it",
+})
+
 vim.api.nvim_create_user_command("HerdrPromptTarget", function(opts)
 	require("herdr-prompt").choose_target(opts.args ~= "" and opts.args or nil)
 end, {

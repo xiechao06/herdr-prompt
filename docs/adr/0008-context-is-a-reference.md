@@ -14,12 +14,18 @@ with the file by the time the agent reads it.
 
 ## Decision
 
-The payload is the reference alone:
+The payload is the reference alone, written as an agent mention:
 
 ```
-src/herdr-prompt/init.lua:120
-src/herdr-prompt/init.lua:120-128
+@src/herdr-prompt/init.lua:120
+@src/herdr-prompt/init.lua:120-128
 ```
+
+`@` because that is how an agent CLI is told "this file": the line reads as a
+mention rather than prose. And it comes **first**: reference, blank line, then
+the request. A mention at the start of a message is what the agent parses; the
+ask reads as a follow-up to it. A prompt body may still place the payload
+itself with `{{context}}`.
 
 Always relative to the target agent's folder: `lua/x.lua` inside it,
 `../other/x.lua` beside it. Never absolute — an absolute path leaks a home

@@ -64,14 +64,14 @@ end
 local body = "Review this.\n\n{{context}}"
 eq(
 	"compose substitutes {{context}}",
-	"Review this.\n\nf.lua:1\n```lua\nx\n```",
-	compose.render(body, { payload = "f.lua:1\n```lua\nx\n```" })
+	"Review this.\n\n@f.lua:1\n```lua\nx\n```",
+	compose.render(body, { payload = "@f.lua:1\n```lua\nx\n```" })
 )
 
 eq(
-	"compose appends when the body has no placeholder",
-	"Review this.\n\nf.lua:1",
-	compose.render("Review this.", { payload = "f.lua:1" })
+	"compose puts the context first when the body has no placeholder",
+	"@f.lua:1\n\nReview this.",
+	compose.render("Review this.", { payload = "@f.lua:1" })
 )
 
 eq("compose with no context is just the body", "hello", compose.render("hello", { payload = "" }))
@@ -178,7 +178,11 @@ local ok2, err2 = pcall(prompts.pick, prompts.choices({}), function(c)
 end)
 vim.ui.select = real_select
 check("prompts.pick hands only strings to vim.ui.select", ok2, err2)
-check("prompts.pick maps the label back to the entry", type(chosen) == "string", vim.inspect(chosen))
+check(
+	"prompts.pick maps the label back to the first entry",
+	chosen ~= nil and chosen.name == prompts.catalog[1].name,
+	vim.inspect(chosen)
+)
 
 stub_select(#prompts.choices({}))
 local entry
@@ -201,7 +205,7 @@ vim.bo[bufnr].filetype = "lua"
 vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.fn.readfile(path))
 
 local built = context.build("selection", { bufnr = bufnr, first = 2, last = 3, cwd = dir })
-eq("the context is a path:line reference", "probe.lua:2-3", built.payload)
+eq("the context is an @path:line reference", "@probe.lua:2-3", built.payload)
 eq("the reference is relative to the agent cwd", "probe.lua", built.file)
 check("no code is copied by default", built.copied_code == false, vim.inspect(built.copied_code))
 
@@ -209,7 +213,7 @@ local with_code = context.build("selection", { bufnr = bufnr, first = 2, last = 
 eq(
 	"context.code copies the lines too",
 	table.concat({
-		"probe.lua:2-3",
+		"@probe.lua:2-3",
 		"```lua",
 		"local b = 2",
 		"local c = 3",
@@ -219,18 +223,18 @@ eq(
 )
 eq(
 	"context.line_numbers numbers copied lines",
-	"probe.lua:2\n```lua\n2: local b = 2\n```",
+	"@probe.lua:2\n```lua\n2: local b = 2\n```",
 	context.build("line", { bufnr = bufnr, first = 2, last = 2, cwd = dir, code = true, line_numbers = true }).payload
 )
 
 local whole = context.build("buffer", { bufnr = bufnr, cwd = dir })
-eq("buffer context covers every line", "probe.lua:1-3", whole.payload)
+eq("buffer context covers every line", "@probe.lua:1-3", whole.payload)
 
 local outside = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = "/elsewhere" })
 check(
 	"a path outside the agent cwd is still relative",
 	outside.payload:sub(1, 1) ~= "/"
-		and outside.payload:sub(1, 2) == ".."
+		and outside.payload:sub(1, 3) == "@.."
 		and outside.payload:find("probe.lua:1", 1, true) == #outside.payload - 10,
 	outside.payload
 )
@@ -238,10 +242,10 @@ check(
 local sibling_cwd = dir .. "/agent"
 vim.fn.mkdir(sibling_cwd, "p")
 local sibling = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = sibling_cwd })
-eq("a file beside the agent's folder climbs out with ..", "../probe.lua:1", sibling.payload)
+eq("a file beside the agent's folder climbs out with ..", "@../probe.lua:1", sibling.payload)
 
 local deeper = context.build("line", { bufnr = bufnr, first = 1, last = 1, cwd = dir })
-eq("a file inside the agent's folder has no prefix at all", "probe.lua:1", deeper.payload)
+eq("a file inside the agent's folder has no prefix at all", "@probe.lua:1", deeper.payload)
 
 -- No path to point at: the code has to travel, or the message says nothing.
 local scratch = vim.api.nvim_create_buf(false, true)
@@ -317,7 +321,7 @@ if address then
 		return received ~= ""
 	end, 50)
 
-	check("payload location arrived", received:find("probe.lua:2-3", 1, true) ~= nil, received)
+	check("payload location arrived", received:find("@probe.lua:2-3", 1, true) ~= nil, received)
 	check("the code itself is not copied", received:find("local b = 2", 1, true) == nil, received)
 	check("no fence without code", received:find("```lua", 1, true) == nil, received)
 	check("prompt body arrived", received:find("Review this code", 1, true) ~= nil, received)
@@ -326,12 +330,12 @@ if address then
 	call("terminal.rm", { terminal = address })
 end
 
--- ------------------------------------------------------------ inline prompt
+-- ---------------------------------------------------------- context command
 
 do
 	local mod = require("herdr-prompt")
-	local saved_request, saved_input, saved_select = rpc.request, vim.ui.input, vim.ui.select
-	local typed, sent
+	local saved_request, saved_select, saved_focus = rpc.request, vim.ui.select, agents.focus
+	local sent, focused
 
 	local function install_stubs()
 		rpc.request = function(method, params, cb)
@@ -357,51 +361,54 @@ do
 				cb({ result = {} })
 			end
 		end
-		vim.ui.input = function(_, on_confirm)
-			on_confirm(typed)
-		end
 		vim.ui.select = function(items, _, on_choice)
-			on_choice(items[1], 1) -- row 1 is "Write my own…"
+			on_choice(items[1], 1)
+		end
+		agents.focus = function(address)
+			focused = address
 		end
 	end
 
 	local function restore_stubs()
 		rpc.request = saved_request
-		vim.ui.input = saved_input
 		vim.ui.select = saved_select
+		agents.focus = saved_focus
 	end
 
 	install_stubs()
 	-- keymaps = {}: this test runs setup once, and mapping is not what it checks.
 	mod.setup({ target = "t1m", confirm = true, keymaps = {} })
 
-	--- Type `question`, pick "Write my own…", and return what reached the transport.
-	local function run(question)
-		typed, sent = question, nil
-		local buf = vim.api.nvim_create_buf(true, false)
-		vim.api.nvim_set_current_buf(buf)
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local a = 1" })
-		-- Inside the agent's folder, so the payload's path is relative to it.
-		vim.api.nvim_buf_set_name(buf, "/Users/xiechao/agent_workspace/x.lua")
-		vim.bo[buf].filetype = "lua"
-		mod.prompt({})
-		vim.wait(3000, function()
-			return sent ~= nil
-		end, 20)
-		pcall(vim.api.nvim_buf_delete, buf, { force = true })
-		return sent
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_set_current_buf(buf)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local a = 1", "local b = 2" })
+	-- Inside the agent's folder, so the reference is relative to it.
+	vim.api.nvim_buf_set_name(buf, "/Users/xiechao/agent_workspace/x.lua")
+	vim.bo[buf].filetype = "lua"
+	vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+	mod.context({})
+	vim.wait(3000, function()
+		return sent ~= nil
+	end, 20)
+
+	eq("the context command sends the reference alone", "@x.lua:2", sent and sent.text)
+	eq("the context command focuses the agent", "t1m", focused)
+
+	-- The picker no longer offers a row that is not a prompt.
+	local names = {}
+	for _, choice in ipairs(prompts.choices({})) do
+		table.insert(names, choice.name)
 	end
+	check(
+		"the picker has no inline row",
+		not vim.tbl_contains(names, "Write my own…"),
+		table.concat(names, ", ")
+	)
+	eq("the catalog still ends with Commit", "Commit", names[#names])
+	eq("nothing but prompts reach the picker", #prompts.choices({}), #prompts.catalog)
 
-	local direct = run("why is this slow?")
-	eq("the typed prompt is sent as-is, then the reference", "why is this slow?\n\nx.lua:1", direct and direct.text)
-	check("the inline prompt goes to the target", direct ~= nil and direct.terminal == "t1m", vim.inspect(direct))
-
-	local cancelled = run(nil)
-	check("a cancelled prompt sends nothing", cancelled == nil, vim.inspect(cancelled))
-
-	local blank = run("   ")
-	check("a blank prompt sends nothing", blank == nil, vim.inspect(blank))
-
+	pcall(vim.api.nvim_buf_delete, buf, { force = true })
 	restore_stubs()
 	package.loaded["herdr-prompt"] = nil
 	require("herdr-prompt")
@@ -412,21 +419,21 @@ do
 	local typed
 	ui.compose_float({
 		title = "Review → t1m",
-		lines = { "Review this code.", "", "x.lua:1" },
+		lines = { "@x.lua:1", "", "Review this code." },
 		on_submit = function(text)
 			typed = text
 		end,
 	})
-	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("A  Please be brief.<C-s>", true, false, true), "x", false)
+	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("GA  Please be brief.<C-s>", true, false, true), "x", false)
 	vim.wait(1000, function()
 		return typed ~= nil
 	end, 20)
-	eq("edits in the float are what gets sent", "Review this code.  Please be brief.\n\nx.lua:1", typed)
+	eq("edits in the float are what gets sent", "@x.lua:1\n\nReview this code.  Please be brief.", typed)
 
 	local untouched
 	ui.compose_float({
 		title = "Review → t1m",
-		lines = { "Review this code.", "", "x.lua:1" },
+		lines = { "@x.lua:1", "", "Review this code." },
 		on_submit = function(text)
 			untouched = text
 		end,
@@ -435,7 +442,7 @@ do
 	vim.wait(1000, function()
 		return untouched ~= nil
 	end, 20)
-	eq("an untouched float sends its lines unchanged", "Review this code.\n\nx.lua:1", untouched)
+	eq("an untouched float sends its lines unchanged", "@x.lua:1\n\nReview this code.", untouched)
 end
 
 -- ---------------------------------------------------------- agent picking

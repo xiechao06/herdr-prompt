@@ -74,10 +74,10 @@ M.catalog = {
 	},
 }
 
---- Catalog plus user prompts plus the inline escape hatch, in picker order.
---- `user` is a list of the same shape as M.catalog.
+--- User prompts first, then the catalog: the ones you wrote are the ones you
+--- reach for. `user` is a list of the same shape as M.catalog.
 function M.choices(user)
-	local out = { "Write my own…" }
+	local out = {}
 	for _, p in ipairs(user or {}) do
 		out[#out + 1] = p
 	end
@@ -100,15 +100,11 @@ function M.find(name, user)
 end
 
 function M.display(p)
-	if type(p) == "string" then
-		return p
-	end
 	return string.format("%s — %s", p.name or "prompt", p.description or "")
 end
 
 --- `vim.ui.select` is handed labels, and the choice mapped back: an entry is a
 --- table here, and pickers that index into items should never see one.
---- `cb` receives the entry, or the string for "Write my own…".
 function M.pick(choices, cb)
 	local labels, by_label = {}, {}
 	for i, item in ipairs(choices) do
