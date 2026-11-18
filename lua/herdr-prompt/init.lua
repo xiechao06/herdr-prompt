@@ -305,21 +305,15 @@ function M.context(opts)
 					return error_notify("could not paste into " .. agent.address .. ": " .. tostring(paste_error))
 				end
 				if M.config.context.cursor_before then
-					-- A paste leaves the cursor after the text, and a cursor key in
-					-- the clipboard cannot move it back: inside a bracketed paste the
-					-- app wraps the text and the escape arrives as characters
-					-- (verified: ESC[200~ ... ESC[201~).
+					-- One `ctrl+a`: the beginning of the line, whatever the path
+					-- length. `left` would need one press per character and
+					-- overshoots into earlier text; `home` is ignored by agents
+					-- (herdr-core sends ESC[H for it, verified against a live one).
 					--
-					-- `home` is no good either — herdr-core sends ESC[H for it and an
-					-- agent's input box ignores that. `left` is ESC[D, which it does
-					-- honour (verified in a real agent: nine lefts then a key press
-					-- gave "q @x.lua:2"). So: one left per character pasted.
-					local text = " " .. payload.payload
-					local keys = {}
-					for _ = 1, vim.fn.strchars(text) do
-						table.insert(keys, "left")
-					end
-					rpc.request("terminal.keys", { terminal = agent.address, keys = keys }, function(msg)
+					-- It still arrives a few seconds later: hc delivers keys only
+					-- after the terminal has been quiet, and our paste starts that
+					-- clock. Nothing client-side shortens it.
+					rpc.request("terminal.keys", { terminal = agent.address, keys = { "ctrl+a" } }, function(msg)
 						if msg.error then
 							vim.notify(
 								"herdr-prompt: could not move the cursor to the start: "

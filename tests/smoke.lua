@@ -424,16 +424,12 @@ do
 	eq("the context command focuses the agent", "t1m", focused)
 	check("the reference is pasted into it", pasted == true, vim.inspect(pasted))
 	check("nothing is submitted: no turn is started", sent == nil, vim.inspect(sent))
-	-- " @x.lua:2" is 9 characters. One `left` each: a `home` press is ESC[H,
-	-- which an agent's input box ignores (verified against a real one), while
-	-- `left` is ESC[D, which it honours.
-	local expected_keys = {}
-	for _ = 1, 9 do
-		table.insert(expected_keys, "left")
-	end
+	-- One `ctrl+a` goes to the start of the line whatever the path length.
+	-- `home` is ESC[H and an agent ignores it; `left` works but needs one press
+	-- per character and overshoots into earlier text (all verified live).
 	check(
-		"the cursor is walked back one left per character",
-		vim.deep_equal(expected_keys, keys_pressed),
+		"the cursor is sent to the line start with one ctrl+a",
+		vim.deep_equal({ "ctrl+a" }, keys_pressed),
 		vim.inspect(keys_pressed)
 	)
 	eq(

@@ -37,15 +37,15 @@ the focused terminal and leaves it on the line. So the sequence is:
    reference, nothing after it,
 2. `agent.focus --terminal t7`,
 3. `terminal.paste`,
-4. `terminal.keys` with **one `left` per character pasted**, so the cursor ends
-   up at the start of the line, in front of the space.
+4. `terminal.keys { "ctrl+a" }`, so the cursor ends up at the start of the
+   line, in front of the space.
 
 Typing there gives `why is this slow? @x.lua:2`: the question comes first, one
 space separates it from the mention, and the mention is not where the cursor
 lands.
 
 The cursor needs that fourth step because a paste leaves it after the text, and
-two cheaper routes are dead:
+three cheaper routes are dead:
 
 - **A cursor key inside the clipboard.** Inside a **bracketed** paste the app
   wraps the text and the escape arrives as characters. A program that enables
@@ -53,28 +53,24 @@ two cheaper routes are dead:
   travelled as text. In a plain shell the same bytes *did* move the cursor,
   which is why that test looked like proof and was not.
 - **`home`.** herdr-core sends `ESC[H` for it (measured), and an agent's input
-  box ignores that sequence. It worked in a shell, and did nothing in the real
-  agent — reported as "the cursor is still at the end".
+  box ignores that sequence. It worked in a shell and did nothing in the real
+  agent.
+- **`left`, one per character.** It works, but the count assumes the pasted
+  reference ends the input line; with text already there the cursor walks into
+  it. Replaced.
 
-`left` is `ESC[D`, which the agent does honour: in a live agent, nine `left`
-presses after pasting `" @x.lua:2"` and one typed character gave
-`q @x.lua:2`. So the step is one `left` per character pasted
-(`vim.fn.strchars`), which walks the cursor to the start of what we pasted.
+`ctrl+a` (`\x01`) is the beginning of the line, independent of what the line
+holds: in a live agent, pasting `" @x.lua:2"`, `ctrl+a`, then `q` gave
+`q @x.lua:2`.
 
-Limitation: the count assumes the pasted reference is what sits at the end of the
-input box. If the box already held text, the cursor walks into that text instead.
-
-Verified against the running app before this was written: a `sh` probe showed
-`sh-3.2$ @paste-probe.lua:7` with the cursor still on that line, no execution.
-
-Two consequences of taking that route:
-
-- **The clipboard is overwritten.** It is the only channel that reaches an
-  agent's input box without submitting. The command says what it pasted, so the
-  loss is visible.
-- **Focus is a real side effect**: the command moves the person out of Neovim.
-  That is the point of the command, which is why it is its own command and not a
-  flag on `:HerdrPrompt`.
+**It is not instant.** `hc` delivers keys only after about three seconds of
+quiet, and our own paste starts that clock — measured 3.02 s right after a
+paste against 0.03 s on a quiet terminal, unchanged by `HC_QUIET_MS` in the
+client environment, and the core's config has no setting for it. The only
+channel without that gate is the framed attach stream, where a viewer writes
+keys as DATA (`[channel u32 LE][kind u8][len u32 LE][payload]`); it would also
+remove the clipboard step. Not built: it needs a binary framed client and
+viewer size ownership, which is a change of its own.
 
 ## Consequences
 
