@@ -19,6 +19,7 @@ end
 function M._normalize(t)
 	local status = type(t.status) == "table" and t.status or {}
 	local labels = type(t.labels) == "table" and t.labels or {}
+	local foreground = type(t.foreground) == "table" and t.foreground or {}
 	return {
 		address = text(t.address),
 		app = text(status.app),
@@ -26,10 +27,14 @@ function M._normalize(t)
 		-- `state` is the terminal's (live|finished). Never swap them.
 		status = text(status.state) or "unknown",
 		state = text(t.state),
-		cwd = text(t.cwd) or "",
+		-- Where it is *now*: `cwd` is the folder it was launched in, which goes
+		-- stale the moment the agent cds anywhere (herdr-core's own manual says
+		-- so). Paths are relativised against this.
+		folder = text(foreground.cwd) or text(t.cwd) or "",
+		-- The Herdr UI's own name for that pane: "<space> / <tab>".
+		where = text(labels.where),
 		name = text(t.name),
 		title = text(t.title),
-		where = text(labels.where),
 	}
 end
 
@@ -59,7 +64,7 @@ function M.list(cb)
 			if a.app ~= b.app then
 				return a.app < b.app
 			end
-			return a.cwd < b.cwd
+			return a.address < b.address
 		end)
 		cb(out)
 	end)
@@ -72,18 +77,21 @@ local function tail(path)
 	return vim.fn.fnamemodify(path, ":t")
 end
 
---- `pi · idle · herdr-app-prompt`, plus the terminal name when it has one.
+--- `t1m · pi · done · agent_workspace / 1` — the address first, because it is
+--- the name you type for `:HerdrPromptTarget`, then what it is, then the pane
+--- label the Herdr window shows.
+---
 --- Every part is a string here: this is a picker label, and label builders that
 --- concatenate whatever they are handed are how `vim.NIL` used to reach
 --- `table.concat`.
 function M.display(agent)
 	local bits = {}
-	for _, part in ipairs({ agent.app, agent.status, agent.name }) do
+	for _, part in ipairs({ agent.address, agent.app, agent.status, agent.name }) do
 		if type(part) == "string" and part ~= "" then
 			table.insert(bits, part)
 		end
 	end
-	table.insert(bits, tail(agent.cwd))
+	table.insert(bits, agent.where or tail(agent.folder))
 	return table.concat(bits, " · ")
 end
 

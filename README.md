@@ -144,6 +144,13 @@ require("herdr-prompt").setup({
 - **The target is not persisted.** A new Neovim session asks again (one keystroke
   with one agent). A target that has since finished is reported, never silently
   replaced by another agent.
+- **Rows read `address · app · status · pane`**, e.g.
+  `t1m · pi · done · agent_workspace / 1`: the address is what
+  `:HerdrPromptTarget` takes, and the pane label is what the Herdr window shows,
+  so a row can be matched by eye. The folder is the agent's *current* one, not
+  where it was launched, so it can differ from the folder you started it in.
+- **The terminal nvim itself runs in is not offered** (`HC_TERMINAL_ID`), so you
+  cannot send a prompt into the window you are reading.
 - **Nothing is read back.** `hc read`/`events.subscribe` could show the answer in
   a split; that is deliberately not in this version.
 

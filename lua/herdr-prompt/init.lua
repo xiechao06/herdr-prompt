@@ -197,7 +197,7 @@ function M.prompt(opts)
 				bufnr = bufnr,
 				first = first,
 				last = last,
-				cwd = agent.cwd,
+				cwd = agent.folder,
 				max_lines = M.config.context.max_lines,
 				line_numbers = M.config.context.line_numbers,
 			})
@@ -263,7 +263,7 @@ function M.setup(opts)
 	rpc.setup({ bin = M.config.hc })
 	if M.config.target then
 		state.target = type(M.config.target) == "table" and M.config.target
-			or { address = M.config.target, app = "?", status = "?", state = "live", cwd = "" }
+			or { address = M.config.target, app = "?", status = "?", state = "live", folder = "" }
 	end
 	local keys = M.config.keymaps or {}
 	map("n", keys.prompt, function()

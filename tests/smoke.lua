@@ -85,8 +85,11 @@ eq("no frontmatter leaves the body alone", "Just text", (select(2, user_prompts.
 -- ------------------------------------------------------- nulls and pickers
 
 -- What `vim.json.decode` really produces for {"name": null}.
-local raw = { address = "t1", state = "live", cwd = "/Users/x/a", name = vim.NIL, title = vim.NIL,
-	labels = { where = "a / 1" }, status = { app = "pi", state = "done" } }
+-- `cwd` is the launch folder, `foreground.cwd` the current one: they differ as
+-- soon as an agent cds, and the label must follow the agent, not the launch.
+local raw = { address = "t1", state = "live", cwd = "/Users/x/old", name = vim.NIL, title = vim.NIL,
+	foreground = { cwd = "/Users/x/now" }, labels = { where = "now / 1" },
+	status = { app = "pi", state = "done" } }
 
 check(
 	"denull turns JSON null into nil",
@@ -98,19 +101,24 @@ local normalized = agents._normalize(raw)
 eq("normalize drops a null name", nil, normalized.name)
 eq("normalize keeps the agent status word", "done", normalized.status)
 eq("normalize keeps the terminal state", "live", normalized.state)
+eq("normalize follows the current folder, not the launch folder", "/Users/x/now", normalized.folder)
+eq("normalize keeps the pane label", "now / 1", normalized.where)
 check("an agent with a null name is still an agent", agents._is_agent(raw) == true)
 check("a finished terminal is not an agent", agents._is_agent({ address = "t9", state = "finished", status = { app = "pi", state = "done" } }) == false)
 check("a plain terminal is not an agent", agents._is_agent({ address = "t8", state = "live", status = vim.NIL }) == false)
 
 -- This is the shape that crashed: a null name reached table.concat.
 local label = agents.display(normalized)
-eq("label survives a null name", "pi · done · a", label)
+eq("label starts with the address and ends with the pane label", "t1 · pi · done · now / 1", label)
 
-local second = agents._normalize({ address = "t2", state = "live", cwd = "/Users/x/a", name = "review", status = { app = "pi", state = "idle" } })
+-- No labels (a terminal outside the app): fall back to the folder's tail.
+local second = agents._normalize({ address = "t2", state = "live", cwd = "/Users/x/a",
+	foreground = { cwd = "/Users/x/a" }, name = "review", status = { app = "pi", state = "idle" } })
+eq("label falls back to the folder when there is no pane label", "t2 · pi · idle · review · a", agents.display(second))
 
 local real_select = vim.ui.select
 local function stub_select(choice_index)
-	vim.ui.select = function(items, _opts, on_choice)
+	vim.ui.select = function(items, _, on_choice)
 		for i, item in ipairs(items) do
 			-- What every picker does somewhere: treat an item as text.
 			if type(item) ~= "string" then
