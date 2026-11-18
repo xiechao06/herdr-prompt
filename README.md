@@ -16,19 +16,30 @@ confirmed before sending.
 
 ## Install
 
-With [lazy.nvim](https://github.com/folke/lazy.nvim):
+Link the checkout into your Neovim config, so nvim loads the repo itself and
+edits are live — there is nothing to copy or sync:
+
+```sh
+ln -s ~/workspace/herdr-app-prompt ~/.config/nvim/herdr-prompt
+```
+
+then, with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-{
-  dir = vim.fn.expand("~/workspace/herdr-app-prompt"),
-  cmd = { "HerdrPrompt", "HerdrPromptTarget" },
-  keys = {
-    { "<leader>ap", mode = { "n", "x" }, desc = "herdr-prompt: send a prompt" },
-    { "<leader>at", desc = "herdr-prompt: choose the agent" },
-  },
-  opts = {},
+-- ~/.config/nvim/lua/plugins/herdr-prompt.lua
+return {
+  dir = vim.fn.expand("~/.config/nvim/herdr-prompt"),
+  name = "herdr-prompt",
+  event = "VeryLazy",
+  opts = { confirm = true },
 }
 ```
+
+`opts` is passed to `setup()`; see [Configuration](#configuration). To use the
+repo directly instead of a link, point `dir` at it. Native package loading works
+too: `ln -s ~/workspace/herdr-app-prompt
+~/.local/share/nvim/site/pack/herdr/start/herdr-prompt`, then call
+`require("herdr-prompt").setup({})` from your own config.
 
 `hc` must be on `PATH` (`~/.local/bin/hc`, installed with Herdr). Nothing else is
 required: no picker plugin (it uses `vim.ui.select`, which `dressing.nvim` makes
