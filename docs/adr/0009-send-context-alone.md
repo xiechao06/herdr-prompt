@@ -33,7 +33,8 @@ asks nothing.
 The app can do it. `herdr-app do terminal.paste` types the system clipboard into
 the focused terminal and leaves it on the line. So the sequence is:
 
-1. write the reference to the clipboard (`+`),
+1. write the reference to the clipboard (`+`), followed by a space so the
+   question typed next starts as its own word,
 2. `agent.focus --terminal t7`,
 3. `terminal.paste`.
 

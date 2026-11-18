@@ -52,13 +52,13 @@ nice), no treesitter, no LSP.
 | `:HerdrPrompt` | Pick a prompt; the current line is the context |
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
-| `:HerdrContext` | Paste `@path:line` into the agent's input box, unsubmitted, and focus it |
+| `:HerdrContext` | Paste `@path:line ` into the agent's input box, unsubmitted, and focus it |
 | `:HerdrPromptTarget` | Choose which agent gets prompts |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
 
-Default keymaps: `<leader>ap` (normal and visual), `<leader>at`. Set
-`keymaps = { prompt = "", target = "" }` to keep your own.
+Default keymaps: `<leader>ap` prompt, `<leader>ac` context, `<leader>at` target —
+each in normal and visual mode. Set a keymap to `""` to keep your own.
 
 After a prompt is composed, a floating buffer shows the whole message —
 prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
@@ -144,6 +144,7 @@ require("herdr-prompt").setup({
   },
   keymaps = {
     prompt = "<leader>ap",
+    context = "<leader>ac",
     target = "<leader>at",
   },
 })

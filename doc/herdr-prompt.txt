@@ -39,10 +39,13 @@ The agent works in its own pane. This plugin does not read its answers back.
                         With a range, the selection. No turn starts: you type
                         the question there and press Enter yourself.
 
-                        The reference travels by the clipboard (`+`), which the
-                        app's paste reads. That overwrites your clipboard; it is
-                        the only way into an agent's input box that does not
-                        submit. herdr-core's own send always presses Enter.
+                        The reference is pasted with a space after it, so
+                        what you type next starts as a separate word.
+
+                        It travels by the clipboard (`+`), which the app's
+                        paste reads -- so this overwrites your clipboard. That
+                        is the only way into an agent's input box that does not
+                        submit; herdr-core's own send always presses Enter.
 
                                                   *:HerdrPromptTarget*
 :HerdrPromptTarget      Choose which agent receives prompts.
@@ -138,8 +141,9 @@ A `prompts` table in `setup()` does the same thing for one-liners; a matching
       },
     })
 <
-Set a keymap to `""` to keep your own. An existing map on the key is never
-overwritten; a warning names it instead.
+Defaults: `<leader>ap` prompt, `<leader>ac` context, `<leader>at` target, each in
+normal and visual mode. Set a keymap to `""` to keep your own. An existing map on
+the key is never overwritten; a warning names it instead.
 
 ==============================================================================
 6. NOTES                                               *herdr-prompt-notes*

@@ -416,7 +416,7 @@ do
 		return sent ~= nil
 	end, 20)
 
-	eq("the reference goes to the clipboard", "@x.lua:2", copied)
+	eq("the reference goes to the clipboard, with a space to type after", "@x.lua:2 ", copied)
 	eq("the context command focuses the agent", "t1m", focused)
 	check("the reference is pasted into it", pasted == true, vim.inspect(pasted))
 	check("nothing is submitted: no turn is started", sent == nil, vim.inspect(sent))

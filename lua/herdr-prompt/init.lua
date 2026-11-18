@@ -37,6 +37,7 @@ M.config = {
 	},
 	keymaps = {
 		prompt = "<leader>ap",
+		context = "<leader>ac",
 		target = "<leader>at",
 	},
 }
@@ -285,7 +286,9 @@ function M.context(opts)
 		-- Not a message: the reference goes into the agent's input box, unsubmitted,
 		-- and focus follows it there. herdr-core cannot paste without pressing
 		-- Enter, so the text travels by the clipboard and the app's own paste.
-		local copied, copy_error = app.copy(payload.payload)
+		-- Trailing space: the cursor lands after it, so the question starts as a
+		-- separate word instead of touching the path.
+		local copied, copy_error = app.copy(payload.payload .. " ")
 		if not copied then
 			return error_notify("cannot use the clipboard, so nothing was pasted: " .. tostring(copy_error))
 		end
@@ -341,6 +344,13 @@ function M.setup(opts)
 		vim.cmd("normal! \27")
 		M.prompt({ range = 2, line1 = vim.fn.line("'<"), line2 = vim.fn.line("'>") })
 	end, "herdr-prompt: send a prompt about the selection")
+	map("x", keys.context, function()
+		vim.cmd("normal! \27")
+		M.context({ range = 2, line1 = vim.fn.line("'<"), line2 = vim.fn.line("'>") })
+	end, "herdr-prompt: paste this selection into the agent")
+	map("n", keys.context, function()
+		M.context({})
+	end, "herdr-prompt: paste this line into the agent")
 	map("n", keys.target, function()
 		M.choose_target(nil)
 	end, "herdr-prompt: choose the agent")
