@@ -14,6 +14,16 @@ Not a chat UI: the agent works in its own pane, and this plugin does not read it
 answers back. See `docs/adr/0007-compose-before-send.md` for why the message is
 confirmed before sending.
 
+## Demo
+
+![Choosing a prompt, reviewing the composed message, sending it](docs/demo/flow.gif)
+
+A real Herdr window, driven by script: the same seven prompts, the composed
+message with its `@path:line` reference at the end, and the send. The target in
+that recording is a scratch terminal that reports program status — no real
+agent was messaged to make the picture, and the sidebar is cropped out because
+it is nobody's business. Regenerate it with `docs/demo/record.sh`.
+
 ## Install
 
 Link the checkout into your Neovim config, so nvim loads the repo itself and

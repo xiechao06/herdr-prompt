@@ -599,6 +599,21 @@ do
 	end, 20)
 	eq("edits in the float are what gets sent", "Review this code.  Please be brief.\n\n@x.lua:1", typed)
 
+	-- A message is not a document: linting it would put MD041 under the text.
+	local linted
+	ui.compose_float({
+		title = "Review → t1m",
+		lines = { "Review this code." },
+		on_submit = function() end,
+	})
+	linted = vim.api.nvim_get_current_buf()
+	check(
+		"diagnostics are off in the compose float",
+		vim.diagnostic.is_enabled({ bufnr = linted }) == false,
+		tostring(vim.diagnostic.is_enabled({ bufnr = linted }))
+	)
+	pcall(vim.api.nvim_buf_delete, linted, { force = true })
+
 	local untouched
 	ui.compose_float({
 		title = "Review → t1m",

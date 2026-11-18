@@ -22,6 +22,10 @@ function M.compose_float(opts)
 	vim.bo[buf].swapfile = false
 	-- markdown: fences in the payload highlight, so a broken block is visible.
 	vim.bo[buf].filetype = "markdown"
+	-- ...but this is a message, not a document: a linter flagging MD041/MD013
+	-- under the text you are about to send is noise in the one window that exists
+	-- to be read.
+	vim.diagnostic.enable(false, { bufnr = buf })
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
 	local width = math.max(40, math.min(120, vim.o.columns - 12))
