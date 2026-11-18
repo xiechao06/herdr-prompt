@@ -73,19 +73,19 @@ only prompts.
 
 It works by clipboard: herdr-core has no paste-without-Enter (`terminal.send`
 always submits), so the reference goes to the `+` register, the app's own
-`terminal.paste` types it into the focused agent, and one `ctrl+a` puts the
-cursor at the line start. **That overwrites your clipboard** — it is the only
-channel that reaches an agent's input box without starting a turn.
+`terminal.paste` types it into the focused agent. **That overwrites your
+clipboard** — it is the only channel that reaches an agent's input box without
+starting a turn.
 
-That `ctrl+a` is **not instant**: `hc` delivers keys only after ~3 s of quiet,
-and the paste starts that clock (measured 3.02 s against 0.03 s on a quiet
-terminal; no client-side or config setting changes it). If you are already
-typing it can move your cursor mid-word — `context.cursor_before = false` skips
-it, leaving the cursor after the reference; `ctrl+a` yourself works too.
+The cursor is left where the paste puts it, at the end, so press `ctrl+a` to get
+to the front and type. The plugin does not do it for you on purpose: `hc`
+delivers keys only after ~3 s of quiet, and the paste starts that clock
+(measured 3.02 s against 0.03 s on a quiet terminal, with no setting that
+changes it). Waiting three seconds to move a cursor is worse than pressing
+`ctrl+a` yourself — and it cannot land in the middle of your first word.
 
-`home` is not used: herdr-core sends `ESC[H` for it and agents ignore that.
-`ctrl+a` is `\x01` and works. The only way to make it instant is herdr-core's
-framed attach stream, which is not built here.
+The space in front of the reference is what keeps your question separate from
+the mention once you are at the start.
 
 ## Context
 

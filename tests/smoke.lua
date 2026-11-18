@@ -337,7 +337,7 @@ do
 	local app = require("herdr-prompt.app")
 	local saved_request, saved_select = rpc.request, vim.ui.select
 	local saved_copy, saved_focus, saved_paste = app.copy, app.focus, app.paste
-	local sent, copied, focused, pasted, keys_pressed, order = nil, nil, nil, nil, nil, {}
+	local sent, copied, focused, pasted, order = nil, nil, nil, nil, {}
 
 	local function install_stubs()
 		app.copy = function(text)
@@ -376,13 +376,6 @@ do
 				sent = params
 				if cb then
 					cb({ result = { started = 1, status = "working", turn = 1 } })
-				end
-				return
-			end
-			if method == "terminal.keys" then
-				keys_pressed = params.keys
-				if cb then
-					cb({ result = {} })
 				end
 				return
 			end
@@ -427,14 +420,9 @@ do
 	-- One `ctrl+a` goes to the start of the line whatever the path length.
 	-- `home` is ESC[H and an agent ignores it; `left` works but needs one press
 	-- per character and overshoots into earlier text (all verified live).
-	check(
-		"the cursor is sent to the line start with one ctrl+a",
-		vim.deep_equal({ "ctrl+a" }, keys_pressed),
-		vim.inspect(keys_pressed)
-	)
 	eq(
-		"copy, focus, paste, then a key press for the cursor",
-		"copy,focus,paste,terminal.keys",
+		"copy, focus, paste — no key presses at all",
+		"copy,focus,paste",
 		table.concat(vim.tbl_filter(function(step)
 			return step ~= "terminal.list"
 		end, order), ",")

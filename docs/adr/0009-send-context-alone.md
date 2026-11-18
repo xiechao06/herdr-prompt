@@ -37,40 +37,31 @@ the focused terminal and leaves it on the line. So the sequence is:
    reference, nothing after it,
 2. `agent.focus --terminal t7`,
 3. `terminal.paste`,
-4. `terminal.keys { "ctrl+a" }`, so the cursor ends up at the start of the
-   line, in front of the space.
-
-Typing there gives `why is this slow? @x.lua:2`: the question comes first, one
-space separates it from the mention, and the mention is not where the cursor
-lands.
-
-The cursor needs that fourth step because a paste leaves it after the text, and
-three cheaper routes are dead:
+The cursor is **not** moved. A paste leaves it at the end of the reference; the
+person presses `ctrl+a` to get in front of it and types. Three routes were tried
+and dropped:
 
 - **A cursor key inside the clipboard.** Inside a **bracketed** paste the app
-  wraps the text and the escape arrives as characters. A program that enables
-  bracketed paste received `b'w\x1b[200~abc\x1b[DXY\x1b[201~'`: the `ESC[D`
+  wraps the text and the escape arrives as characters. A program with bracketed
+  paste enabled received `b'w\x1b[200~abc\x1b[DXY\x1b[201~'`: the `ESC[D`
   travelled as text. In a plain shell the same bytes *did* move the cursor,
   which is why that test looked like proof and was not.
 - **`home`.** herdr-core sends `ESC[H` for it (measured), and an agent's input
   box ignores that sequence. It worked in a shell and did nothing in the real
   agent.
-- **`left`, one per character.** It works, but the count assumes the pasted
-  reference ends the input line; with text already there the cursor walks into
-  it. Replaced.
+- **`ctrl+a`, or `left` one per character.** Both work in the agent (verified:
+  paste, `ctrl+a`, `q` → `q @x.lua:2`), but `hc` delivers keys only after about
+  three seconds of quiet — measured 3.02 s right after a paste against 0.03 s on
+  a quiet terminal, unchanged by `HC_QUIET_MS` in the client environment, and
+  the core's config has no setting for it. Three seconds to move a cursor is
+  worse than pressing `ctrl+a`, and a key that lands that late can arrive in the
+  middle of the first word the person types.
 
-`ctrl+a` (`\x01`) is the beginning of the line, independent of what the line
-holds: in a live agent, pasting `" @x.lua:2"`, `ctrl+a`, then `q` gave
-`q @x.lua:2`.
-
-**It is not instant.** `hc` delivers keys only after about three seconds of
-quiet, and our own paste starts that clock — measured 3.02 s right after a
-paste against 0.03 s on a quiet terminal, unchanged by `HC_QUIET_MS` in the
-client environment, and the core's config has no setting for it. The only
-channel without that gate is the framed attach stream, where a viewer writes
-keys as DATA (`[channel u32 LE][kind u8][len u32 LE][payload]`); it would also
-remove the clipboard step. Not built: it needs a binary framed client and
-viewer size ownership, which is a change of its own.
+The only channel without that gate is the framed attach stream, where a viewer
+writes keys as DATA (`[channel u32 LE][kind u8][len u32 LE][payload]`). That
+would make the move instant and could also drop the clipboard, at the cost of a
+binary framed client and viewer size ownership. Not built; the plugin does less
+and the person does one keystroke.
 
 ## Consequences
 

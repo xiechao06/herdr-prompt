@@ -30,9 +30,6 @@ M.config = {
 		-- Send the lines too, not just `path:12-18`. Off by default: the agent
 		-- is in the workspace and can read the file itself.
 		code = false,
-		-- `:HerdrContext`: leave the cursor at the start of the pasted reference,
-		-- ready for the question that belongs in front of it.
-		cursor_before = true,
 		-- with `code`, prefix each line with its number (CopilotChat style)
 		line_numbers = false,
 		-- with `code`, refuse more lines than this rather than truncating
@@ -289,9 +286,11 @@ function M.context(opts)
 		-- Not a message: the reference goes into the agent's input box, unsubmitted,
 		-- and focus follows it there. herdr-core cannot paste without pressing
 		-- Enter, so the text travels by the clipboard and the app's own paste.
-		-- A space *before* the reference: the cursor is parked in front of it, so
-		-- the question typed there ends up separated from the mention rather than
-		-- touching it. Nothing trails the reference — the cursor is not there.
+		-- A space *before* the reference, nothing after it: a paste leaves the
+		-- cursor at the end, so the space is what separates the reference from
+		-- whatever comes next. Moving the cursor to the start is the person's own
+		-- `ctrl+a` — hc delivers keys only after ~3 s of quiet, and waiting that
+		-- long to move a cursor is worse than pressing it yourself.
 		local copied, copy_error = app.copy(" " .. payload.payload)
 		if not copied then
 			return error_notify("cannot use the clipboard, so nothing was pasted: " .. tostring(copy_error))
@@ -303,25 +302,6 @@ function M.context(opts)
 			app.paste(function(pasted, paste_error)
 				if not pasted then
 					return error_notify("could not paste into " .. agent.address .. ": " .. tostring(paste_error))
-				end
-				if M.config.context.cursor_before then
-					-- One `ctrl+a`: the beginning of the line, whatever the path
-					-- length. `left` would need one press per character and
-					-- overshoots into earlier text; `home` is ignored by agents
-					-- (herdr-core sends ESC[H for it, verified against a live one).
-					--
-					-- It still arrives a few seconds later: hc delivers keys only
-					-- after the terminal has been quiet, and our paste starts that
-					-- clock. Nothing client-side shortens it.
-					rpc.request("terminal.keys", { terminal = agent.address, keys = { "ctrl+a" } }, function(msg)
-						if msg.error then
-							vim.notify(
-								"herdr-prompt: could not move the cursor to the start: "
-									.. tostring(msg.error.message or "?"),
-								vim.log.levels.WARN
-							)
-						end
-					end)
 				end
 				vim.notify(
 					string.format(

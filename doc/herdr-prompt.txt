@@ -39,13 +39,11 @@ The agent works in its own pane. This plugin does not read its answers back.
                         With a range, the selection. No turn starts: you type
                         the question there and press Enter yourself.
 
-                        The reference is pasted as " @path:line", cursor in
-                        front of it: typing gives "why? @x.lua:2". One ctrl+a
-                        puts the cursor at the line start (agents ignore the
-                        ESC[H that `home` sends). It arrives after a few seconds
-                        of quiet, so it can land mid-word if you type at once --
-                        set `context.cursor_before = false` to skip it and press
-                        ctrl+a yourself.
+                        The reference is pasted as " @path:line" and the
+                        cursor stays at the end: press ctrl+a to get in front of
+                        it, then type -- "why? @x.lua:2". Moving the cursor is
+                        not automated because hc delivers keys only after a few
+                        seconds of quiet, which is slower than pressing it.
 
                         It travels by the clipboard (`+`), which the app's
                         paste reads -- so this overwrites your clipboard. That
