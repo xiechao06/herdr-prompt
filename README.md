@@ -63,6 +63,10 @@ After a prompt is composed, a floating buffer shows the whole message —
 prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
 can edit anything first (fix the range, drop the code, reword the ask).
 
+**Write my own…** opens the same float with two blank lines above the context and
+the cursor in insert mode: type your question, and the code goes below it. Blank
+lines you leave empty are not sent.
+
 ## Context
 
 | Kind | What is attached |

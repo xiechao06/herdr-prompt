@@ -211,11 +211,20 @@ function M.prompt(opts)
 				end
 				return do_send(agent, text)
 			end
+			local lines = vim.split(text, "\n", { plain = true })
+			if entry.blank_first then
+				-- An inline prompt: a line to type on, a line between it and the
+				-- context. Either is dropped on submit if it stays empty.
+				local padded = { "", "" }
+				vim.list_extend(padded, lines)
+				lines = padded
+			end
 			ui.compose_float({
 				-- The address, not the app: two `pi` agents are two different
 				-- places to send this.
 				title = string.format("%s → %s", entry.name or "prompt", agent.address or agent.app),
-				lines = vim.split(text, "\n", { plain = true }),
+				lines = lines,
+				insert = entry.blank_first,
 				on_submit = function(edited)
 					if submit == false then
 						return
@@ -236,8 +245,9 @@ function M.prompt(opts)
 
 		prompts.pick(prompts.choices(user), function(choice)
 			if type(choice) == "string" then
-				-- "Write my own…": empty body, context still attached.
-				return go({ name = "prompt", body = "", context = default_kind }, true)
+				-- "Write my own…": typing space first, context below it, cursor
+				-- in insert mode.
+				return go({ name = "your prompt", body = "", context = default_kind, blank_first = true }, true)
 			end
 			go(choice, choice.submit ~= false)
 		end)

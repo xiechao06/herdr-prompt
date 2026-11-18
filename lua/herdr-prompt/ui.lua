@@ -13,7 +13,12 @@ local function close(win, buf)
 	end
 end
 
---- opts = {title, lines, on_submit(text), on_cancel(), on_yank? }
+--- opts = {title, lines, on_submit(text), on_cancel(), insert? }
+---
+--- `insert` starts the buffer in insert mode: the inline prompt's first act is
+--- to type. Without it the cursor sits in normal mode on the context's own
+--- line, where "please fix this" runs as motions (`o` opens a line, `w` moves
+--- a word) instead of being typed.
 function M.compose_float(opts)
 	local lines = opts.lines or { "" }
 	local buf = vim.api.nvim_create_buf(false, true)
@@ -42,6 +47,9 @@ function M.compose_float(opts)
 
 	local function submit()
 		local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		-- Leading blank lines are the typing space an inline prompt opened
+		-- with. They are not part of the message.
+		text = text:gsub("^\n+", "")
 		close(win, buf)
 		vim.schedule(function()
 			opts.on_submit(text)
@@ -61,6 +69,9 @@ function M.compose_float(opts)
 
 	-- Put the cursor in the body, not at the end of the context block.
 	vim.api.nvim_win_set_cursor(win, { 1, 0 })
+	if opts.insert then
+		vim.cmd("startinsert")
+	end
 	return buf, win
 end
 
