@@ -34,9 +34,14 @@ The agent works in its own pane. This plugin does not read its answers back.
 :HerdrPrompt {name}     Skip the picker and use the named prompt.
 
                                                       *:HerdrContext*
-:HerdrContext           Send this line as `@path:line` and nothing else, then
-:[range]HerdrContext    focus that agent's pane. With a range, the selection.
-                        The next keystroke is typed into the agent.
+:HerdrContext           Send this line as `@path:line` and nothing else, press
+:[range]HerdrContext    Enter, then focus that agent's pane. With a range, the
+                        selection. The next keystroke is typed into the agent.
+
+                        The extra Enter is for an `@` mention opening the
+                        agent's file-completion popup, which eats the Enter
+                        that sending already presses. Enter is delivered before
+                        focus moves, so it cannot submit a half-typed question.
 
                                                   *:HerdrPromptTarget*
 :HerdrPromptTarget      Choose which agent receives prompts.

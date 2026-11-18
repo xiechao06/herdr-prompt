@@ -335,10 +335,18 @@ end
 do
 	local mod = require("herdr-prompt")
 	local saved_request, saved_select, saved_focus = rpc.request, vim.ui.select, agents.focus
-	local sent, focused
+	local sent, focused, keys, order = nil, nil, nil, {}
 
 	local function install_stubs()
 		rpc.request = function(method, params, cb)
+			table.insert(order, method)
+			if method == "terminal.keys" then
+				keys = params
+				if cb then
+					cb({ result = {} })
+				end
+				return
+			end
 			if method == "terminal.list" then
 				if cb then
 					cb({ result = { terminals = { {
@@ -393,7 +401,19 @@ do
 	end, 20)
 
 	eq("the context command sends the reference alone", "@x.lua:2", sent and sent.text)
+	check(
+		"the context command presses Enter after sending",
+		vim.deep_equal({ terminal = "t1m", keys = { "enter" } }, keys),
+		vim.inspect(keys)
+	)
 	eq("the context command focuses the agent", "t1m", focused)
+	eq(
+		"Enter lands before the focus moves",
+		"terminal.send,terminal.keys",
+		table.concat(vim.tbl_filter(function(m)
+			return m ~= "terminal.list"
+		end, order), ",")
+	)
 
 	-- The picker no longer offers a row that is not a prompt.
 	local names = {}

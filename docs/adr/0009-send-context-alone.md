@@ -20,8 +20,20 @@ the agent's own input box, which is better at exactly that job.
 Drop the inline row. The picker offers prompts and only prompts.
 
 Add `:HerdrContext` (visual range supported): it sends the reference and nothing
-else — `@src/x.lua:12-18` — then moves focus to that agent's pane so the next
-keystroke is typed into the agent, not into Neovim.
+else — `@src/x.lua:12-18` — presses Enter, then moves focus to that agent's pane
+so the next keystroke is typed into the agent, not into Neovim.
+
+Two details that are not obvious:
+
+- **A second Enter.** `terminal.send` already presses Enter, but an `@` mention
+  opens the agent's file-completion popup on paste, and that popup eats the
+  Enter to pick a completion. The text then sits in the input box unsubmitted.
+  One more Enter submits it, or lands on an empty input where it does nothing.
+- **Order: Enter, then focus.** `hc` delivers named keys only after about three
+  seconds of quiet. Focusing first would leave that Enter pending while the
+  person started typing, and it would submit their half-written question. So
+  focus moves when the key press returns, and the person cannot type into the
+  agent before then. The cost is that focus can arrive a few seconds late.
 
 ## Consequences
 

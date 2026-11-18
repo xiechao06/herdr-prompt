@@ -52,7 +52,7 @@ nice), no treesitter, no LSP.
 | `:HerdrPrompt` | Pick a prompt; the current line is the context |
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
-| `:HerdrContext` | Send this line or selection as `@path:line` only, then focus the agent |
+| `:HerdrContext` | Send this line or selection as `@path:line` only, press Enter, then focus the agent |
 | `:HerdrPromptTarget` | Choose which agent gets prompts |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
@@ -65,9 +65,14 @@ prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
 can edit anything first (fix the range, drop the code, reword the ask).
 
 Type your own question in the agent's own input box instead: `:HerdrContext`
-sends `@path:line` on its own and moves focus to that agent's pane, so the next
-keystroke lands where an agent CLI already has history, drafts and completion.
-The picker lists prompts and only prompts.
+sends `@path:line` on its own, presses Enter, and moves focus to that agent's
+pane, so the next keystroke lands where an agent CLI already has history, drafts
+and completion. The picker lists prompts and only prompts.
+
+The extra Enter covers an `@` mention opening the agent's file-completion popup,
+which eats the Enter `hc send` already presses; on an empty input it does
+nothing. Enter lands before focus moves, because `hc` delivers keys after a few
+seconds of quiet — focusing first would submit your half-typed question.
 
 ## Context
 

@@ -152,6 +152,28 @@ end
 
 -- ------------------------------------------------------------------ send
 
+--- One more Enter, for agents whose `@` completion eats the one `terminal.send`
+--- presses: the mention popup opens on paste, so Enter picks a completion
+--- instead of submitting, and the text sits in the input box.
+---
+--- hc delivers named keys after about three seconds of quiet, which is why the
+--- focus moves only once this returns: while the Enter is pending the person is
+--- still in Neovim and cannot type into the agent, so the Enter cannot land in
+--- the middle of a sentence they have started.
+local function press_enter(agent, after)
+	rpc.request("terminal.keys", { terminal = agent.address, keys = { "enter" } }, function(msg)
+		if msg.error then
+			vim.notify(
+				"herdr-prompt: could not press Enter: " .. tostring(msg.error.message or "?"),
+				vim.log.levels.WARN
+			)
+		end
+		if after then
+			after()
+		end
+	end)
+end
+
 local function do_send(agent, text, opts)
 	opts = opts or {}
 	if agent.status == "blocked" then
@@ -173,9 +195,15 @@ local function do_send(agent, text, opts)
 			note = note .. " (no agent status reported)"
 		end
 		vim.notify("herdr-prompt: " .. note, vim.log.levels.INFO)
-		if opts.focus or M.config.focus_agent then
-			agents.focus(agent.address)
+		local function move_focus()
+			if opts.focus or M.config.focus_agent then
+				agents.focus(agent.address)
+			end
 		end
+		if opts.enter then
+			return press_enter(agent, move_focus)
+		end
+		move_focus()
 	end)
 end
 
@@ -281,7 +309,8 @@ function M.context(opts)
 		if payload.payload == "" then
 			return error_notify("nothing to send: no context here")
 		end
-		do_send(agent, payload.payload, { focus = true })
+		-- Submit it, then put the person in the agent to ask their question there.
+		do_send(agent, payload.payload, { focus = true, enter = true })
 	end)
 end
 
