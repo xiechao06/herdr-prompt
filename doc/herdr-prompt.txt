@@ -1,0 +1,140 @@
+*herdr-prompt.txt*  Send a prompt to a Herdr agent from Neovim
+
+==============================================================================
+CONTENTS                                                    *herdr-prompt*
+
+1. Intro ................................... |herdr-prompt-intro|
+2. Commands ............................. |herdr-prompt-commands|
+3. Context ............................... |herdr-prompt-context|
+4. Your own prompts ................. |herdr-prompt-user-prompts|
+5. Configuration ..................... |herdr-prompt-config|
+6. Notes ................................... |herdr-prompt-notes|
+
+==============================================================================
+1. INTRO                                                *herdr-prompt-intro*
+
+Send the current line, or the visual selection, to a coding agent running in
+the Herdr app, wrapped in a prompt of your choosing.
+
+Requires `hc` (herdr-core) on `PATH`. The plugin speaks to herdr-core over
+`hc connect` (JSON-RPC 2.0), so Neovim does not have to be running inside a
+Herdr pane.
+
+The agent is chosen once per Neovim session, on the first send.
+
+The agent works in its own pane. This plugin does not read its answers back.
+
+==============================================================================
+2. COMMANDS                                         *herdr-prompt-commands*
+
+                                                        *:HerdrPrompt*
+:HerdrPrompt            Pick a prompt. The current line is the context.
+:[range]HerdrPrompt     Pick a prompt. The range is the context, so
+                        `:'<,'>HerdrPrompt` sends the selection.
+:HerdrPrompt {name}     Skip the picker and use the named prompt.
+
+                                                  *:HerdrPromptTarget*
+:HerdrPromptTarget      Choose which agent receives prompts.
+:HerdrPromptTarget {t}  Point at a terminal address (`t7`) without a picker.
+
+                                                    *:HerdrPromptStop*
+:HerdrPromptStop        Close the connection to herdr-core. It reopens on the
+                        next send.
+
+The composed message opens in a floating buffer: prompt body, location line,
+fenced code.
+
+    <C-s>               Send it.
+    <Esc>               Cancel.
+    q                   Cancel (normal mode).
+
+Edit anything before sending; the buffer contents are what gets sent.
+
+==============================================================================
+3. CONTEXT                                           *herdr-prompt-context*
+
+    line        The current line. Default for `:HerdrPrompt`.
+    selection   The visual selection. Default for `:'<,'>HerdrPrompt`.
+    buffer      The whole buffer.
+    gitdiff     `git diff --cached`, else `git diff`.
+    none        Nothing.
+
+A prompt may name its own context (see |herdr-prompt-user-prompts|); otherwise
+the call site decides.
+
+The payload is a location line, then a fenced block:
+
+    src/file.lua:12-18
+    ```lua
+    code, verbatim
+    ```
+
+The path is relative to the target agent's folder when the file is inside it,
+absolute otherwise. Selections longer than `context.max_lines` are refused, not
+truncated.
+
+==============================================================================
+4. YOUR OWN PROMPTS                             *herdr-prompt-user-prompts*
+
+Markdown files in `user_prompts_dir` (default `<nvim config>/herdr-prompts/`):
+
+    ---
+    name: Harden
+    description: Find missing input validation
+    context: buffer
+    submit: true
+    ---
+    Find missing input validation in this code.
+
+    name         Picker label; also `:HerdrPrompt <name>`. Default: filename.
+    description  Shown beside the name. Default: first body line.
+    context      See |herdr-prompt-context|. Default: the call site.
+    submit       `false` leaves the text in the float unsent.
+
+Files are re-read every time the picker opens: edit one and the next
+`:HerdrPrompt` uses it. A body may place the context with `{{context}}`
+(also `{{file}}`, `{{lines}}`); without a placeholder the payload is appended
+after a blank line.
+
+A `prompts` table in `setup()` does the same thing for one-liners; a matching
+`name` overrides a catalog entry.
+
+==============================================================================
+5. CONFIGURATION                                     *herdr-prompt-config*
+
+>lua
+    require("herdr-prompt").setup({
+      hc = "hc",
+      target = nil,           -- e.g. "t7"; nil asks on first send
+      confirm = true,         -- false sends without the float
+      focus_agent = false,    -- focus the agent pane after a send
+      prompts = {},           -- extra prompts, catalog shape
+      user_prompts_dir = nil, -- nil = <nvim config>/herdr-prompts
+      context = {
+        line_numbers = false, -- prefix code lines with their number
+        max_lines = 2000,
+      },
+      keymaps = {
+        prompt = "<leader>ap", -- normal and visual
+        target = "<leader>at",
+      },
+    })
+<
+Set a keymap to `""` to keep your own. An existing map on the key is never
+overwritten; a warning names it instead.
+
+==============================================================================
+6. NOTES                                               *herdr-prompt-notes*
+
+A `blocked` agent is refused: it is waiting on a person. A `working` agent gets
+a warning and then the message, pasted into its input.
+
+The target is not persisted across Neovim sessions, and a target that has
+finished is reported rather than replaced.
+
+Diagnostics: `:HerdrPromptStop` then send again reconnects. `herdr-prompt:`
+prefixes every message.
+
+Design records live in `docs/adr/` beside the source.
+
+ vim:tw=78:ts=8:ft=help:norl:
