@@ -50,6 +50,9 @@ fenced code.
 
 Edit anything before sending; the buffer contents are what gets sent.
 
+The "Write my own..." row does not open that buffer: it asks for one line with
+|vim.ui.input()| and sends it at once with the context below it.
+
 ==============================================================================
 3. CONTEXT                                           *herdr-prompt-context*
 

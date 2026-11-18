@@ -205,26 +205,20 @@ function M.prompt(opts)
 				return error_notify(payload.error)
 			end
 			local text = compose.render(entry.body or "", payload)
-			if not M.config.confirm then
+			-- `entry.direct` is the inline prompt: what the person typed is the
+			-- message, nothing to review. `confirm = false` says the same for
+			-- every prompt.
+			if entry.direct or not M.config.confirm then
 				if submit == false then
-					return error_notify("confirm is off, so an unsent prompt has nowhere to live")
+					return error_notify("this prompt is sent without review, so an unsent one has nowhere to live")
 				end
 				return do_send(agent, text)
-			end
-			local lines = vim.split(text, "\n", { plain = true })
-			if entry.blank_first then
-				-- An inline prompt: a line to type on, a line between it and the
-				-- context. Either is dropped on submit if it stays empty.
-				local padded = { "", "" }
-				vim.list_extend(padded, lines)
-				lines = padded
 			end
 			ui.compose_float({
 				-- The address, not the app: two `pi` agents are two different
 				-- places to send this.
 				title = string.format("%s → %s", entry.name or "prompt", agent.address or agent.app),
-				lines = lines,
-				insert = entry.blank_first,
+				lines = vim.split(text, "\n", { plain = true }),
 				on_submit = function(edited)
 					if submit == false then
 						return
@@ -245,9 +239,15 @@ function M.prompt(opts)
 
 		prompts.pick(prompts.choices(user), function(choice)
 			if type(choice) == "string" then
-				-- "Write my own…": typing space first, context below it, cursor
-				-- in insert mode.
-				return go({ name = "your prompt", body = "", context = default_kind, blank_first = true }, true)
+				-- "Write my own…": one line, sent with the context, no float.
+				local prompt = string.format("Prompt for %s", agent.address or agent.app or "the agent")
+				return vim.ui.input({ prompt = prompt .. ": " }, function(input)
+					input = input and vim.trim(input) or ""
+					if input == "" then
+						return
+					end
+					go({ name = "your prompt", body = input, context = default_kind, direct = true }, true)
+				end)
 			end
 			go(choice, choice.submit ~= false)
 		end)

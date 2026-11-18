@@ -306,99 +306,111 @@ end
 
 do
 	local mod = require("herdr-prompt")
-	local saved_request, saved_float, saved_select = rpc.request, ui.compose_float, vim.ui.select
-	local sent, captured
+	local saved_request, saved_input, saved_select = rpc.request, vim.ui.input, vim.ui.select
+	local typed, sent
 
-	rpc.request = function(method, params, cb)
-		if method == "terminal.list" then
-			if cb then
-				cb({ result = { terminals = { {
-					address = "t1m", state = "live", cwd = "/Users/xiechao",
-					foreground = { cwd = "/Users/xiechao/agent_workspace" },
-					labels = { where = "agent_workspace / 1" },
-					status = { app = "pi", state = "done" },
-				} } } })
+	local function install_stubs()
+		rpc.request = function(method, params, cb)
+			if method == "terminal.list" then
+				if cb then
+					cb({ result = { terminals = { {
+						address = "t1m", state = "live", cwd = "/Users/xiechao",
+						foreground = { cwd = "/Users/xiechao/agent_workspace" },
+						labels = { where = "agent_workspace / 1" },
+						status = { app = "pi", state = "done" },
+					} } } })
+				end
+				return
 			end
-			return
-		end
-		if method == "terminal.send" then
-			sent = params
-			if cb then
-				cb({ result = { started = 1, status = "working", turn = 1 } })
+			if method == "terminal.send" then
+				sent = params
+				if cb then
+					cb({ result = { started = 1, status = "working", turn = 1 } })
+				end
+				return
 			end
-			return
+			if cb then
+				cb({ result = {} })
+			end
 		end
-		if cb then
-			cb({ result = {} })
+		vim.ui.input = function(_, on_confirm)
+			on_confirm(typed)
+		end
+		vim.ui.select = function(items, _, on_choice)
+			on_choice(items[1], 1) -- row 1 is "Write my own…"
 		end
 	end
-	ui.compose_float = function(opts)
-		captured = opts
-		opts.on_submit(table.concat(opts.lines, "\n"))
-	end
-	-- Row 1 is "Write my own…".
-	vim.ui.select = function(items, _, on_choice)
-		on_choice(items[1], 1)
+
+	local function restore_stubs()
+		rpc.request = saved_request
+		vim.ui.input = saved_input
+		vim.ui.select = saved_select
 	end
 
-	mod.setup({ target = "t1m", confirm = true })
-	vim.cmd.enew()
-	vim.api.nvim_buf_set_lines(0, 0, -1, false, { "local a = 1" })
-	vim.api.nvim_buf_set_name(0, "/Users/xiechao/workspace/herdr-app-prompt/x.lua")
-	vim.bo.filetype = "lua"
+	install_stubs()
+	-- keymaps = {}: this test runs setup once, and mapping is not what it checks.
+	mod.setup({ target = "t1m", confirm = true, keymaps = {} })
 
-	mod.prompt({})
-	vim.wait(3000, function()
-		return sent ~= nil
-	end, 20)
-
-	rpc.request, ui.compose_float, vim.ui.select = saved_request, saved_float, saved_select
-
-	check("inline prompt opens a float", captured ~= nil, vim.inspect(captured))
-	if captured then
-		check("inline prompt starts in insert mode", captured.insert == true, vim.inspect(captured.insert))
-		eq("inline prompt leaves a line to type on", "", captured.lines[1])
-		eq("inline prompt leaves a gap before the context", "", captured.lines[2])
-		check("context follows the typing space", tostring(captured.lines[3]):find("x.lua:1", 1, true) ~= nil, captured.lines[3])
+	--- Type `question`, pick "Write my own…", and return what reached the transport.
+	local function run(question)
+		typed, sent = question, nil
+		local buf = vim.api.nvim_create_buf(true, false)
+		vim.api.nvim_set_current_buf(buf)
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local a = 1" })
+		-- Inside the agent's folder, so the payload's path is relative to it.
+		vim.api.nvim_buf_set_name(buf, "/Users/xiechao/agent_workspace/x.lua")
+		vim.bo[buf].filetype = "lua"
+		mod.prompt({})
+		vim.wait(3000, function()
+			return sent ~= nil
+		end, 20)
+		pcall(vim.api.nvim_buf_delete, buf, { force = true })
+		return sent
 	end
-	check("inline prompt reaches the transport", sent ~= nil and sent.terminal == "t1m", vim.inspect(sent))
-	check(
-		"inline prompt carries the context",
-		sent ~= nil and sent.text:find("x.lua:1", 1, true) ~= nil,
-		sent and sent.text
+
+	local direct = run("why is this slow?")
+	eq(
+		"the typed prompt is sent as-is, context below it",
+		"why is this slow?\n\nx.lua:1\n```lua\nlocal a = 1\n```",
+		direct and direct.text
 	)
+	check("the inline prompt goes to the target", direct ~= nil and direct.terminal == "t1m", vim.inspect(direct))
 
-	-- Fresh module state for anything after this block.
+	local cancelled = run(nil)
+	check("a cancelled prompt sends nothing", cancelled == nil, vim.inspect(cancelled))
+
+	local blank = run("   ")
+	check("a blank prompt sends nothing", blank == nil, vim.inspect(blank))
+
+	restore_stubs()
 	package.loaded["herdr-prompt"] = nil
 	require("herdr-prompt")
 end
 
--- The real float, with real key presses: typing then <C-s>.
+-- The compose float with real key presses: <C-s> sends what is in the buffer.
 do
 	local typed
 	ui.compose_float({
-		title = "your prompt → t1m",
-		lines = { "", "", "x.lua:1", "```lua", "local a = 1", "```" },
-		insert = true,
+		title = "Review → t1m",
+		lines = { "Review this code.", "", "x.lua:1", "```lua", "local a = 1", "```" },
 		on_submit = function(text)
 			typed = text
 		end,
 	})
-	-- `nvim -l` is script mode: it has no interactive state, so no command here
-	-- reaches insert mode (verified: startinsert, normal! i, feedkeys "i" all
-	-- leave mode n). The leading "i" is therefore ours to type; what this
-	-- covers is the insert-mode <C-s> mapping, the typed text and the trim.
-	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("ihello<C-s>", true, false, true), "x", false)
+	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("A  Please be brief.<C-s>", true, false, true), "x", false)
 	vim.wait(1000, function()
 		return typed ~= nil
 	end, 20)
-	eq("typed text leads, then a blank line, then the context", "hello\n\nx.lua:1\n```lua\nlocal a = 1\n```", typed)
+	eq(
+		"edits in the float are what gets sent",
+		"Review this code.  Please be brief.\n\nx.lua:1\n```lua\nlocal a = 1\n```",
+		typed
+	)
 
 	local untouched
 	ui.compose_float({
-		title = "your prompt → t1m",
-		lines = { "", "", "x.lua:1" },
-		insert = true,
+		title = "Review → t1m",
+		lines = { "Review this code.", "", "x.lua:1" },
 		on_submit = function(text)
 			untouched = text
 		end,
@@ -407,7 +419,7 @@ do
 	vim.wait(1000, function()
 		return untouched ~= nil
 	end, 20)
-	eq("an unused typing space is not sent", "x.lua:1", untouched)
+	eq("an untouched float sends its lines unchanged", "Review this code.\n\nx.lua:1", untouched)
 end
 
 -- ---------------------------------------------------------- agent picking

@@ -22,11 +22,13 @@ prompt skips only the send, leaving the text in the float).
 
 - One keystroke more than "send immediately", in exchange for the range and path
   being visible before they are committed.
-- The float is also the inline-prompt input: "Write my own…" is the same float,
-  opened with two blank lines above the context and the cursor in insert mode.
-  Typing space, then a blank line, then the payload; blank lines left empty are
-  dropped on submit. One composition surface, not two.
-- The first version skipped both, so an inline prompt opened in normal mode *on
-  the context's own location line*: the first word typed ran as motions (`o`
-  opened a line, `w` moved a word) and the message arrived mangled. Fixed the
-  same day; the test now types into the float and checks the submitted text.
+- Inline prompts do not use the float. "Write my own…" asks for one line with
+  `vim.ui.input` and sends it with the context attached. The message is the
+  thing the person just typed, so there is nothing to review, and a float costs
+  a keystroke without adding information.
+- Two earlier versions were wrong, both same-day: the first opened the float
+  with the cursor in normal mode *on the context's own location line* (typing
+  "please fix this" ran as motions — `o` opened a line, `w` moved a word); the
+  second added a typing space and insert mode but still asked for confirmation
+  of text the person had just written. Both were dropped for one reason: the
+  float reviews *composed* text, and an inline prompt is not composed.
