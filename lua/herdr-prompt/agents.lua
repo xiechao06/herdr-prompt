@@ -95,13 +95,24 @@ function M.display(agent)
 	return table.concat(bits, " · ")
 end
 
+--- The marker on the agent prompts are already going to.
+M.CURRENT = "✓ "
+
 --- Ask the person which agent. `vim.ui.select` is handed labels — plain
 --- strings — and the answer is mapped back, so no picker implementation can
 --- trip over the shape of a terminal record.
-function M.pick(list, cb)
+---
+--- `current` is the address already chosen, marked with `✓` and named in the
+--- prompt: re-opening the picker answers "where do my prompts go?" first.
+function M.pick(list, cb, current)
 	local labels, by_label = {}, {}
+	local marked = false
 	for i, agent in ipairs(list) do
 		local label = M.display(agent)
+		if current ~= nil and agent.address == current then
+			label = M.CURRENT .. label
+			marked = true
+		end
 		if by_label[label] ~= nil then
 			-- Two terminals can read identically (same app, same folder).
 			label = label .. " (" .. i .. ")"
@@ -109,7 +120,11 @@ function M.pick(list, cb)
 		labels[i] = label
 		by_label[label] = agent
 	end
-	vim.ui.select(labels, { prompt = "Send prompts to which agent?" }, function(choice)
+	local prompt = "Send prompts to which agent?"
+	if marked then
+		prompt = prompt .. " (" .. vim.trim(M.CURRENT) .. " = current)"
+	end
+	vim.ui.select(labels, { prompt = prompt }, function(choice)
 		local agent = choice and by_label[choice] or nil
 		if agent then
 			cb(agent)

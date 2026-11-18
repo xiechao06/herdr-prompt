@@ -84,7 +84,7 @@ local function ask_target(cb)
 		agents.pick(list, function(choice)
 			state.target = choice
 			cb(choice)
-		end)
+		end, state.target and state.target.address)
 	end)
 end
 
@@ -122,7 +122,7 @@ function M.choose_target(address)
 		if #list == 0 then
 			return error_notify("no live agent terminals — start an agent in Herdr first")
 		end
-		agents.pick(list, use_target)
+		agents.pick(list, use_target, state.target and state.target.address)
 	end)
 end
 
@@ -212,7 +212,9 @@ function M.prompt(opts)
 				return do_send(agent, text)
 			end
 			ui.compose_float({
-				title = string.format("%s → %s", entry.name or "prompt", agent.app),
+				-- The address, not the app: two `pi` agents are two different
+				-- places to send this.
+				title = string.format("%s → %s", entry.name or "prompt", agent.address or agent.app),
 				lines = vim.split(text, "\n", { plain = true }),
 				on_submit = function(edited)
 					if submit == false then

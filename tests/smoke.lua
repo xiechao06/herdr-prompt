@@ -138,6 +138,38 @@ vim.ui.select = real_select
 check("agents.pick hands only strings to vim.ui.select", ok, pick_err)
 check("agents.pick maps the label back to its agent", picked ~= nil and picked.address == "t2", vim.inspect(picked))
 
+-- The agent prompts already go to is marked, and stays selectable.
+local seen
+local function capture_select(fn)
+	vim.ui.select = function(items, opts, on_choice)
+		seen = { items = items, prompt = (opts and opts.prompt) or "" }
+		fn(items, on_choice)
+	end
+end
+
+capture_select(function(items, on_choice)
+	on_choice(items[1], 1)
+end)
+local marked_pick
+local ok4, err4 = pcall(agents.pick, { normalized, second }, function(a)
+	marked_pick = a
+end, "t1")
+vim.ui.select = real_select
+check("a marked pick still works", ok4 and marked_pick ~= nil and marked_pick.address == "t1", err4 or vim.inspect(marked_pick))
+eq("only the current agent is marked", 1, (function()
+	local n = 0
+	for _, item in ipairs(seen.items) do
+		if item:sub(1, #agents.CURRENT) == agents.CURRENT then
+			n = n + 1
+		end
+	end
+	return n
+end)())
+check("the marked label starts with the marker", seen.items[1]:sub(1, #agents.CURRENT) == agents.CURRENT, seen.items[1])
+check("an unmarked row keeps its old label", seen.items[2] == agents.display(second), seen.items[2])
+check("labels are still strings", type(seen.items[1]) == "string" and type(seen.items[2]) == "string")
+check("the prompt says what the marker means", seen.prompt:find("current", 1, true) ~= nil, seen.prompt)
+
 stub_select(1)
 local chosen
 local ok2, err2 = pcall(prompts.pick, prompts.choices({}), function(c)

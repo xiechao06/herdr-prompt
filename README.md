@@ -144,6 +144,9 @@ require("herdr-prompt").setup({
 - **The target is not persisted.** A new Neovim session asks again (one keystroke
   with one agent). A target that has since finished is reported, never silently
   replaced by another agent.
+- **The agent you are already sending to is marked `✓`** at the top of its row
+  and named in the picker's prompt, so re-opening the picker tells you where
+  prompts currently go without opening one.
 - **Rows read `address · app · status · pane`**, e.g.
   `t1m · pi · done · agent_workspace / 1`: the address is what
   `:HerdrPromptTarget` takes, and the pane label is what the Herdr window shows,
