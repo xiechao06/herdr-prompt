@@ -19,6 +19,12 @@ end, {
 	desc = "Send a prompt to a Herdr agent, with this line or selection as context",
 	complete = function(arg)
 		local names = {}
+		local mod = require("herdr-prompt")
+		local dir = mod.config.user_prompts_dir
+			or (vim.fn.stdpath("config") .. "/herdr-prompts")
+		for _, p in ipairs(require("herdr-prompt.user_prompts").load(dir)) do
+			table.insert(names, p.name)
+		end
 		for _, p in ipairs(require("herdr-prompt.prompts").catalog) do
 			table.insert(names, p.name)
 		end
