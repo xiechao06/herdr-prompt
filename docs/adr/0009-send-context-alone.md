@@ -19,21 +19,35 @@ the agent's own input box, which is better at exactly that job.
 
 Drop the inline row. The picker offers prompts and only prompts.
 
-Add `:HerdrContext` (visual range supported): it sends the reference and nothing
-else — `@src/x.lua:12-18` — presses Enter, then moves focus to that agent's pane
-so the next keystroke is typed into the agent, not into Neovim.
+Add `:HerdrContext` (visual range supported): the reference — `@src/x.lua:12-18`
+— goes into the agent's input box **unsubmitted**, and focus moves there, so the
+person types the question where the agent's own history, drafts and completion
+are. No turn starts.
 
-Two details that are not obvious:
+How the text gets there is the whole problem. herdr-core cannot paste without
+submitting: `terminal.send` always presses Enter, and `terminal.keys` accepts
+named keys only (`"@x.lua:2 hello"` is rejected as an unknown key). A bare
+submitted mention is worse than useless — it spends a turn on a message that
+asks nothing.
 
-- **A second Enter.** `terminal.send` already presses Enter, but an `@` mention
-  opens the agent's file-completion popup on paste, and that popup eats the
-  Enter to pick a completion. The text then sits in the input box unsubmitted.
-  One more Enter submits it, or lands on an empty input where it does nothing.
-- **Order: Enter, then focus.** `hc` delivers named keys only after about three
-  seconds of quiet. Focusing first would leave that Enter pending while the
-  person started typing, and it would submit their half-written question. So
-  focus moves when the key press returns, and the person cannot type into the
-  agent before then. The cost is that focus can arrive a few seconds late.
+The app can do it. `herdr-app do terminal.paste` types the system clipboard into
+the focused terminal and leaves it on the line. So the sequence is:
+
+1. write the reference to the clipboard (`+`),
+2. `agent.focus --terminal t7`,
+3. `terminal.paste`.
+
+Verified against the running app before this was written: a `sh` probe showed
+`sh-3.2$ @paste-probe.lua:7` with the cursor still on that line, no execution.
+
+Two consequences of taking that route:
+
+- **The clipboard is overwritten.** It is the only channel that reaches an
+  agent's input box without submitting. The command says what it pasted, so the
+  loss is visible.
+- **Focus is a real side effect**: the command moves the person out of Neovim.
+  That is the point of the command, which is why it is its own command and not a
+  flag on `:HerdrPrompt`.
 
 ## Consequences
 
@@ -44,6 +58,10 @@ Two details that are not obvious:
   command and not a flag on `:HerdrPrompt`.
 - Nothing is left in Neovim to review, so there is no float and no confirmation,
   consistent with 0008's "the reference is the context".
+- Each step reports its own failure (`cannot use the clipboard`, `could not
+  focus`, `could not paste`) rather than silently doing nothing: the first
+  version ignored the exit status of the app commands, so a broken step looked
+  exactly like a working one.
 - Typing a long prompt inside Neovim is no longer possible. It was never the
   plugin's strength: the agent's input box has history, drafts and its own
   editing, and `hc send` (via the agent pane) is one keystroke away.

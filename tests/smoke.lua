@@ -334,19 +334,33 @@ end
 
 do
 	local mod = require("herdr-prompt")
-	local saved_request, saved_select, saved_focus = rpc.request, vim.ui.select, agents.focus
-	local sent, focused, keys, order = nil, nil, nil, {}
+	local app = require("herdr-prompt.app")
+	local saved_request, saved_select = rpc.request, vim.ui.select
+	local saved_copy, saved_focus, saved_paste = app.copy, app.focus, app.paste
+	local sent, copied, focused, pasted, order = nil, nil, nil, nil, {}
 
 	local function install_stubs()
+		app.copy = function(text)
+			copied = text
+			table.insert(order, "copy")
+			return true
+		end
+		app.focus = function(terminal, cb)
+			focused = terminal
+			table.insert(order, "focus")
+			if cb then
+				cb(true)
+			end
+		end
+		app.paste = function(cb)
+			pasted = true
+			table.insert(order, "paste")
+			if cb then
+				cb(true)
+			end
+		end
 		rpc.request = function(method, params, cb)
 			table.insert(order, method)
-			if method == "terminal.keys" then
-				keys = params
-				if cb then
-					cb({ result = {} })
-				end
-				return
-			end
 			if method == "terminal.list" then
 				if cb then
 					cb({ result = { terminals = { {
@@ -380,7 +394,9 @@ do
 	local function restore_stubs()
 		rpc.request = saved_request
 		vim.ui.select = saved_select
-		agents.focus = saved_focus
+		app.copy = saved_copy
+		app.focus = saved_focus
+		app.paste = saved_paste
 	end
 
 	install_stubs()
@@ -400,18 +416,15 @@ do
 		return sent ~= nil
 	end, 20)
 
-	eq("the context command sends the reference alone", "@x.lua:2", sent and sent.text)
-	check(
-		"the context command presses Enter after sending",
-		vim.deep_equal({ terminal = "t1m", keys = { "enter" } }, keys),
-		vim.inspect(keys)
-	)
+	eq("the reference goes to the clipboard", "@x.lua:2", copied)
 	eq("the context command focuses the agent", "t1m", focused)
+	check("the reference is pasted into it", pasted == true, vim.inspect(pasted))
+	check("nothing is submitted: no turn is started", sent == nil, vim.inspect(sent))
 	eq(
-		"Enter lands before the focus moves",
-		"terminal.send,terminal.keys",
-		table.concat(vim.tbl_filter(function(m)
-			return m ~= "terminal.list"
+		"copy, then focus, then paste",
+		"copy,focus,paste",
+		table.concat(vim.tbl_filter(function(step)
+			return step ~= "terminal.list"
 		end, order), ",")
 	)
 

@@ -52,7 +52,7 @@ nice), no treesitter, no LSP.
 | `:HerdrPrompt` | Pick a prompt; the current line is the context |
 | `:'<,'>HerdrPrompt` | Pick a prompt; the selection is the context |
 | `:HerdrPrompt Review` | Skip the picker, send the Review prompt |
-| `:HerdrContext` | Send this line or selection as `@path:line` only, press Enter, then focus the agent |
+| `:HerdrContext` | Paste `@path:line` into the agent's input box, unsubmitted, and focus it |
 | `:HerdrPromptTarget` | Choose which agent gets prompts |
 | `:HerdrPromptTarget t7` | Point at `t7` without a picker |
 | `:HerdrPromptStop` | Close the connection to herdr-core |
@@ -65,14 +65,15 @@ prompt body, location line, fenced code. `<C-s>` sends, `<Esc>` cancels, and you
 can edit anything first (fix the range, drop the code, reword the ask).
 
 Type your own question in the agent's own input box instead: `:HerdrContext`
-sends `@path:line` on its own, presses Enter, and moves focus to that agent's
-pane, so the next keystroke lands where an agent CLI already has history, drafts
-and completion. The picker lists prompts and only prompts.
+puts `@path:line` on the agent's input line — unsubmitted — and moves focus
+there, so you finish the sentence where that CLI already has history, drafts and
+completion. No turn is started. The picker lists prompts and only prompts.
 
-The extra Enter covers an `@` mention opening the agent's file-completion popup,
-which eats the Enter `hc send` already presses; on an empty input it does
-nothing. Enter lands before focus moves, because `hc` delivers keys after a few
-seconds of quiet — focusing first would submit your half-typed question.
+It works by clipboard: herdr-core has no paste-without-Enter (`terminal.send`
+always submits), so the reference goes to the `+` register, then the app's own
+`terminal.paste` types it into the focused agent. **That overwrites your
+clipboard** — it is the only channel that reaches an agent's input box without
+starting a turn.
 
 ## Context
 

@@ -10,6 +10,7 @@ local prompts = require("herdr-prompt.prompts")
 local user_prompts = require("herdr-prompt.user_prompts")
 local compose = require("herdr-prompt.compose")
 local ui = require("herdr-prompt.ui")
+local app = require("herdr-prompt.app")
 
 local M = {}
 
@@ -152,28 +153,6 @@ end
 
 -- ------------------------------------------------------------------ send
 
---- One more Enter, for agents whose `@` completion eats the one `terminal.send`
---- presses: the mention popup opens on paste, so Enter picks a completion
---- instead of submitting, and the text sits in the input box.
----
---- hc delivers named keys after about three seconds of quiet, which is why the
---- focus moves only once this returns: while the Enter is pending the person is
---- still in Neovim and cannot type into the agent, so the Enter cannot land in
---- the middle of a sentence they have started.
-local function press_enter(agent, after)
-	rpc.request("terminal.keys", { terminal = agent.address, keys = { "enter" } }, function(msg)
-		if msg.error then
-			vim.notify(
-				"herdr-prompt: could not press Enter: " .. tostring(msg.error.message or "?"),
-				vim.log.levels.WARN
-			)
-		end
-		if after then
-			after()
-		end
-	end)
-end
-
 local function do_send(agent, text, opts)
 	opts = opts or {}
 	if agent.status == "blocked" then
@@ -195,15 +174,9 @@ local function do_send(agent, text, opts)
 			note = note .. " (no agent status reported)"
 		end
 		vim.notify("herdr-prompt: " .. note, vim.log.levels.INFO)
-		local function move_focus()
-			if opts.focus or M.config.focus_agent then
-				agents.focus(agent.address)
-			end
+		if opts.focus or M.config.focus_agent then
+			app.focus(agent.address)
 		end
-		if opts.enter then
-			return press_enter(agent, move_focus)
-		end
-		move_focus()
 	end)
 end
 
@@ -309,8 +282,31 @@ function M.context(opts)
 		if payload.payload == "" then
 			return error_notify("nothing to send: no context here")
 		end
-		-- Submit it, then put the person in the agent to ask their question there.
-		do_send(agent, payload.payload, { focus = true, enter = true })
+		-- Not a message: the reference goes into the agent's input box, unsubmitted,
+		-- and focus follows it there. herdr-core cannot paste without pressing
+		-- Enter, so the text travels by the clipboard and the app's own paste.
+		local copied, copy_error = app.copy(payload.payload)
+		if not copied then
+			return error_notify("cannot use the clipboard, so nothing was pasted: " .. tostring(copy_error))
+		end
+		app.focus(agent.address, function(focused, focus_error)
+			if not focused then
+				return error_notify("could not focus " .. agent.address .. ": " .. tostring(focus_error))
+			end
+			app.paste(function(pasted, paste_error)
+				if not pasted then
+					return error_notify("could not paste into " .. agent.address .. ": " .. tostring(paste_error))
+				end
+				vim.notify(
+					string.format(
+						"herdr-prompt: %s pasted into %s — type your question there",
+						payload.payload,
+						agent.address
+					),
+					vim.log.levels.INFO
+				)
+			end)
+		end)
 	end)
 end
 

@@ -144,9 +144,4 @@ function M.find(address, cb)
 	end)
 end
 
---- `herdr-app do agent.focus --terminal t7` — show the agent you just messaged.
-function M.focus(address)
-	vim.system({ "herdr-app", "do", "agent.focus", "--terminal", address }, { text = true }, function() end)
-end
-
 return M
