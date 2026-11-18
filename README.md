@@ -195,3 +195,7 @@ sends a composed Review message through the plugin's own path, and checks the
 bytes that arrived before removing the terminal. It never sends to a live agent.
 
 Design records: `docs/adr/`, vocabulary: `GLOSSARY.md`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
